@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Aura · fotocamera</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff;
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  video.specchio { transform: scaleX(-1); }
+
+  .start { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 18px; padding: 24px; text-align: center; }
+  .start h1 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: .02em; }
+  .start p { margin: 0; max-width: 32ch; color: #b8c2cc; line-height: 1.45; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; cursor: pointer; }
+  .big { font-size: 18px; padding: 16px 30px; background: #5cc2cc; color: #001014; }
+
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 10px; justify-content: center;
+    padding: 14px max(16px, env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .bar button { padding: 12px 18px; background: rgba(0,0,0,.55); color: #fff; border: 1px solid rgba(255,255,255,.35);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+
+  .info { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right)); font: 12px/1.4 ui-monospace, Menlo, monospace;
+    background: rgba(0,0,0,.55); padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; }
+
+  .errore { color: #ffb4a8; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<video id="video" playsinline muted autoplay hidden></video>
+
+<div class="start" id="start">
+  <h1>Aura</h1>
+  <p>Prova 1: la pagina apre la fotocamera del telefono. Tocca il pulsante e consenti l'accesso alla fotocamera.</p>
+  <button class="big" id="avvia">Apri la fotocamera</button>
+  <p id="messaggio" class="errore" hidden></p>
+</div>
+
+<div class="info" id="info" hidden></div>
+
+<div class="bar" id="bar" hidden>
+  <button id="cambia">Cambia fotocamera</button>
+  <button id="dati">Nascondi dati</button>
+</div>
+
+<script>
+  // Aura · fase 0 · azione 5 — pagina che apre la fotocamera
+  // Fotocamera frontale per default: guardi lo schermo e la tua mano è davanti al telefono.
+  const video = document.getElementById("video");
+  const start = document.getElementById("start");
+  const info = document.getElementById("info");
+  const bar = document.getElementById("bar");
+  const messaggio = document.getElementById("messaggio");
+
+  let lato = "user";          // "user" = frontale, "environment" = posteriore
+  let stream = null;
+  let fotogrammi = 0, ultimoConteggio = performance.now(), fps = 0;
+
+  function mostraErrore(testo) {
+    start.hidden = false;
+    messaggio.hidden = false;
+    messaggio.textContent = testo;
+  }
+
+  async function apri() {
+    if (!window.isSecureContext) {
+      mostraErrore("La pagina deve essere aperta con https:// (GitHub Pages lo fa già).");
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      mostraErrore("Questo browser non permette l'accesso alla fotocamera. Prova con Chrome su Android o Safari su iPhone.");
+      return;
+    }
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: lato, width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+    } catch (e) {
+      const testi = {
+        NotAllowedError: "Accesso alla fotocamera negato. Consentilo nelle impostazioni del sito (icona accanto all'indirizzo) e ricarica.",
+        NotFoundError: "Nessuna fotocamera trovata su questo dispositivo.",
+        NotReadableError: "La fotocamera è usata da un'altra app. Chiudila e riprova.",
+        OverconstrainedError: "Questa fotocamera non supporta le impostazioni richieste."
+      };
+      mostraErrore(testi[e.name] || ("Errore: " + e.name + " " + (e.message || "")));
+      return;
+    }
+    video.srcObject = stream;
+    video.classList.toggle("specchio", lato === "user");
+    video.hidden = false;
+    start.hidden = true;
+    bar.hidden = false;
+    info.hidden = false;
+    try { await video.play(); } catch (e) {}
+  }
+
+  function aggiornaInfo() {
+    const traccia = stream && stream.getVideoTracks()[0];
+    if (!traccia) return;
+    const s = traccia.getSettings();
+    info.textContent =
+      "Fotocamera: " + (lato === "user" ? "frontale" : "posteriore") + "\n" +
+      "Nome: " + (traccia.label || "—") + "\n" +
+      "Risoluzione: " + (video.videoWidth || s.width || "?") + " × " + (video.videoHeight || s.height || "?") + "\n" +
+      "Fotogrammi al secondo: " + fps.toFixed(0);
+  }
+
+  // Conta i fotogrammi del video (servirà per il punto 9)
+  function conta() {
+    fotogrammi++;
+    const ora = performance.now();
+    if (ora - ultimoConteggio >= 1000) {
+      fps = fotogrammi * 1000 / (ora - ultimoConteggio);
+      fotogrammi = 0; ultimoConteggio = ora;
+      aggiornaInfo();
+    }
+    if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(conta);
+    else requestAnimationFrame(conta);
+  }
+  if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(conta);
+  else requestAnimationFrame(conta);
+
+  document.getElementById("avvia").onclick = apri;
+  document.getElementById("cambia").onclick = () => { lato = lato === "user" ? "environment" : "user"; apri(); };
+  document.getElementById("dati").onclick = (e) => {
+    info.hidden = !info.hidden;
+    e.target.textContent = info.hidden ? "Mostra dati" : "Nascondi dati";
+  };
+</script>
+</body>
+</html>
