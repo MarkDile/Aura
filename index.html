@@ -32,9 +32,9 @@
 
 <div id="intro">
   <h1>Aura</h1>
-  <p>Test 2 (v5): la pagina disegna i 21 punti della mano sopra il video. Punta del pollice (4) e dell'indice (8) sono evidenziate.</p>
+  <p>Test 2 (v6): la pagina disegna i 21 punti della mano sopra il video. Punta del pollice (4) e dell'indice (8) sono evidenziate.</p>
   <button id="start">Apri la fotocamera</button>
-  <small id="msg">versione 5</small>
+  <small id="msg">versione 6</small>
 </div>
 
 <div id="hud" hidden>Carico il modello…</div>
@@ -111,9 +111,27 @@ async function openCamera() {
       throw new Error("la fotocamera è occupata o bloccata. Chiudi le altre schede e app che la usano (anche la pagina vecchia), poi riprova.");
     throw lastErr;
   }
+  // il video deve essere visibile: Chrome Android non avvia i video nascosti
+  document.getElementById("intro").hidden = true;
+  hud.hidden = false;
+  hud.textContent = "Avvio il video (" + (facing === "user" ? "frontale" : "posteriore") + ")…";
+  video.autoplay = true;
   video.srcObject = stream;
-  msg.textContent = "Avvio il video…";
-  await withTimeout(video.play(), 8000, "Video");
+  video.play().catch(e => console.warn("play:", e));
+  const t0 = performance.now();
+  while (!(video.videoWidth > 0 && video.readyState >= 2)) {
+    if (performance.now() - t0 > 6000) {
+      const s = stream.getVideoTracks()[0];
+      const info = s ? `traccia ${s.readyState}, muta: ${s.muted}` : "nessuna traccia";
+      if (facing === "user") {            // la frontale non manda immagini: provo la posteriore
+        facing = "environment";
+        hud.textContent = "La frontale non risponde, provo la posteriore…";
+        return openCamera();
+      }
+      throw new Error("la fotocamera non manda immagini (" + info + ")");
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
   const m = facing === "user";
   video.classList.toggle("mirror", m);
   canvas.classList.toggle("mirror", m);
@@ -150,8 +168,6 @@ document.getElementById("start").addEventListener("click", async () => {
   try {
     msg.textContent = "Apro la fotocamera…";
     await openCamera();
-    document.getElementById("intro").hidden = true;
-    hud.hidden = false;
     try { landmarker = await loadModel("CPU"); }
     catch (e) { console.warn(e); delegate = "GPU"; landmarker = await loadModel("GPU"); }
     hud.textContent = "Mostra la mano alla fotocamera (" + delegate + ")";
@@ -159,6 +175,7 @@ document.getElementById("start").addEventListener("click", async () => {
     loop();
   } catch (e) {
     msg.textContent = "Errore: " + e.name + " · " + e.message;
+    document.getElementById("intro").hidden = false;
     hud.hidden = false; hud.textContent = msg.textContent;
     console.error(e);
   }
