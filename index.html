@@ -8,193 +8,149 @@
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #eee;
     font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
-  #stage { position: fixed; inset: 0; }
-  video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  video, canvas { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .mirror { transform: scaleX(-1); }
-  #intro { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 14px; padding: 24px; text-align: center; z-index: 5; background: #000; }
-  h1 { margin: 0; font-weight: 600; letter-spacing: .08em; }
-  p { margin: 0; max-width: 32ch; color: #aaa; line-height: 1.4; }
-  button { font: inherit; font-size: 17px; padding: 12px 22px; border-radius: 999px; border: 0;
-    background: #39d0ff; color: #001018; font-weight: 600; }
-  #hud { position: fixed; left: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 4;
-    background: rgba(0,0,0,.55); padding: 8px 12px; border-radius: 10px; font-size: 14px; line-height: 1.5; }
-  #flip { position: fixed; right: 12px; top: calc(12px + env(safe-area-inset-top)); z-index: 4;
-    font-size: 14px; padding: 8px 14px; background: rgba(255,255,255,.85); }
-  small { color: #666; }
+  #panel { position: fixed; left: 0; right: 0; top: 0; z-index: 3; padding: 12px;
+    padding-top: calc(12px + env(safe-area-inset-top)); background: rgba(0,0,0,.6); }
+  h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: .08em; }
+  button { font: inherit; font-size: 16px; padding: 10px 18px; border-radius: 999px; border: 0;
+    background: #39d0ff; color: #001018; font-weight: 600; margin: 4px 6px 4px 0; }
+  button.sec { background: rgba(255,255,255,.85); }
+  #info { font-size: 14px; line-height: 1.5; margin-top: 6px; }
+  #log { font: 12px/1.4 ui-monospace, monospace; color: #9fe; margin-top: 6px; max-height: 30vh; overflow: auto; white-space: pre-wrap; }
+  #ver { color: #888; font-size: 12px; }
 </style>
 </head>
 <body>
-<div id="stage">
-  <video id="video" playsinline muted></video>
-  <canvas id="canvas"></canvas>
-</div>
+<video id="video" playsinline muted autoplay></video>
+<canvas id="canvas"></canvas>
 
-<div id="intro">
-  <h1>Aura</h1>
-  <p>Test 2 (v7): la pagina disegna i 21 punti della mano sopra il video. Punta del pollice (4) e dell'indice (8) sono evidenziate.</p>
+<div id="panel">
+  <h1>Aura <span id="ver">versione 8 · <span id="clock">0</span> s</span></h1>
   <button id="start">Apri la fotocamera</button>
-  <small id="msg">versione 7</small>
+  <button id="flip" class="sec" hidden>Cambia fotocamera</button>
+  <button id="hide" class="sec" hidden>Nascondi diario</button>
+  <div id="info">Test 2: i 21 punti della mano. Pollice (4) e indice (8) in rosa.</div>
+  <div id="log"></div>
 </div>
 
-<div id="hud" hidden>Carico il modello…</div>
-<button id="flip" hidden>Cambia fotocamera</button>
-
+<!-- Script normale (non modulo): parte sempre, anche se MediaPipe non si carica -->
 <script>
-  function showErr(t){ var m=document.getElementById("msg"), h=document.getElementById("hud");
-    m.textContent="Errore: "+t; h.hidden=false; h.textContent="Errore: "+t; }
-  window.addEventListener("error", function(e){ showErr(e.message || "script"); });
-  window.addEventListener("unhandledrejection", function(e){ showErr((e.reason && e.reason.message) || e.reason); });
-  window.auraOk=false;
-  setTimeout(function(){ if(!window.auraOk) showErr("la libreria MediaPipe non si è caricata (rete o browser). Prova Chrome aggiornato."); }, 8000);
+  var T0 = Date.now();
+  var logEl = document.getElementById("log");
+  function log(t) {
+    var s = ((Date.now() - T0) / 1000).toFixed(1);
+    logEl.textContent += s + " s · " + t + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  // orologio: se si ferma, la pagina è bloccata
+  setInterval(function () {
+    document.getElementById("clock").textContent = Math.round((Date.now() - T0) / 1000);
+  }, 500);
+  window.addEventListener("error", function (e) { log("ERRORE: " + e.message); });
+  window.addEventListener("unhandledrejection", function (e) {
+    log("ERRORE: " + ((e.reason && (e.reason.name + " " + e.reason.message)) || e.reason));
+  });
+  log("pagina caricata · " + (navigator.userAgent.match(/(SamsungBrowser|Chrome|Version)\/[\d.]+/) || ["browser ?"])[0]);
+  log("HTTPS: " + window.isSecureContext + " · camera API: " + !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
 </script>
+
 <script type="module">
-import { FilesetResolver, HandLandmarker, DrawingUtils }
-  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
-
-const WASM  = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
-const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
-
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
-const hud = document.getElementById("hud");
-const flip = document.getElementById("flip");
-const msg = document.getElementById("msg");
-const draw = new DrawingUtils(ctx);
-window.auraOk = true;
-let delegate = "CPU";
+const info = document.getElementById("info");
+const startBtn = document.getElementById("start");
+const flipBtn = document.getElementById("flip");
+const hideBtn = document.getElementById("hide");
+const log = window.log;
 
-let landmarker = null;
-let facing = "user";          // frontale: comoda per provare sulla propria mano
-let stream = null;
-let lastVideoTime = -1;
-let firstOpen = true;
-let permState = "?";
-try { navigator.permissions.query({ name: "camera" }).then(r => { permState = r.state; r.onchange = () => permState = r.state; }); } catch (e) {}
+const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 
-async function loadModel(d) {
-  hud.textContent = "Carico il modello (" + d + ")…";
-  const files = await FilesetResolver.forVisionTasks(WASM);
-  return await HandLandmarker.createFromOptions(files, {
-    baseOptions: { modelAssetPath: MODEL, delegate: d },
-    runningMode: "VIDEO",
-    numHands: 2
-  });
-}
+let stream = null, facing = null, landmarker = null, mp = null, draw = null;
+let lastVideoTime = -1, running = false;
 
-function withTimeout(promise, ms, what) {
-  return Promise.race([promise, new Promise((_, rej) =>
-    setTimeout(() => rej(new Error(what + ": il telefono non risponde dopo " + ms/1000 + " s. Riavvia il telefono e riprova.")), ms))]);
-}
-
-async function openCamera() {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null;
-                video.srcObject = null; await new Promise(r => setTimeout(r, 300)); }
-  // tentativi dal più preciso al più semplice: alcuni Samsung rifiutano i vincoli
-  // prima la richiesta più semplice (come webcamtests e la versione 2, che funzionavano)
-  const tries = firstOpen ? [true, { facingMode: facing }] : [{ facingMode: facing }, true];
-  firstOpen = false;
-  let lastErr = null;
-  for (const v of tries) {
-    try {
-      const t0 = Date.now();
-      const tick = setInterval(() => {
-        msg.textContent = `Chiedo la fotocamera… ${Math.round((Date.now()-t0)/1000)} s · permesso: ${permState} · prova ${tries.indexOf(v)+1}/${tries.length}`;
-      }, 500);
-      try {
-      stream = await withTimeout(navigator.mediaDevices.getUserMedia({ audio: false, video: v }), 8000, "Fotocamera");
-      } finally { clearInterval(tick); }
-      break;
-    } catch (e) {
-      lastErr = e;
-      if (e.name === "NotAllowedError") throw e;   // permesso negato: inutile riprovare
-      await new Promise(r => setTimeout(r, 500));
-    }
-  }
-  if (!stream) {
-    if (lastErr && lastErr.name === "NotReadableError")
-      throw new Error("la fotocamera è occupata o bloccata. Chiudi le altre schede e app che la usano (anche la pagina vecchia), poi riprova.");
-    throw lastErr;
-  }
-  // il video deve essere visibile: Chrome Android non avvia i video nascosti
-  document.getElementById("intro").hidden = true;
-  hud.hidden = false;
-  hud.textContent = "Avvio il video (" + (facing === "user" ? "frontale" : "posteriore") + ")…";
-  video.autoplay = true;
+async function openCamera(constraints) {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  log("chiedo la fotocamera: " + JSON.stringify(constraints));
+  stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: constraints });
+  const tr = stream.getVideoTracks()[0];
+  const st = tr.getSettings ? tr.getSettings() : {};
+  facing = st.facingMode || (constraints && constraints.facingMode) || facing || "user";
+  log("fotocamera OK: " + (tr.label || "?") + " · " + (st.width || "?") + "×" + (st.height || "?") + " · " + facing);
   video.srcObject = stream;
-  video.play().catch(e => console.warn("play:", e));
-  const t0 = performance.now();
-  while (!(video.videoWidth > 0 && video.readyState >= 2)) {
-    if (performance.now() - t0 > 6000) {
-      const s = stream.getVideoTracks()[0];
-      const info = s ? `traccia ${s.readyState}, muta: ${s.muted}` : "nessuna traccia";
-      if (facing === "user") {            // la frontale non manda immagini: provo la posteriore
-        facing = "environment";
-        hud.textContent = "La frontale non risponde, provo la posteriore…";
-        return openCamera();
-      }
-      throw new Error("la fotocamera non manda immagini (" + info + ")");
-    }
-    await new Promise(r => setTimeout(r, 200));
-  }
-  const st = stream.getVideoTracks()[0]?.getSettings?.() || {};
-  if (st.facingMode) facing = st.facingMode;
+  try { await video.play(); } catch (e) { log("play: " + e.name + " " + e.message); }
   const m = facing === "user";
   video.classList.toggle("mirror", m);
   canvas.classList.toggle("mirror", m);
+  for (let i = 0; i < 50 && !video.videoWidth; i++) await new Promise(r => setTimeout(r, 100));
+  log("video: " + video.videoWidth + "×" + video.videoHeight);
+}
+
+async function loadMediaPipe() {
+  log("carico MediaPipe…");
+  mp = await import(MP + "/vision_bundle.mjs");
+  const files = await mp.FilesetResolver.forVisionTasks(MP + "/wasm");
+  log("carico il modello della mano (CPU)…");
+  landmarker = await mp.HandLandmarker.createFromOptions(files, {
+    baseOptions: { modelAssetPath: MODEL, delegate: "CPU" },
+    runningMode: "VIDEO", numHands: 2
+  });
+  draw = new mp.DrawingUtils(ctx);
+  log("modello pronto: mostra la mano");
 }
 
 function loop() {
   if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
-    if (canvas.width !== video.videoWidth) {
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    }
+    if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
     let res;
     try { res = landmarker.detectForVideo(video, performance.now()); }
-    catch (e) { hud.textContent = "Errore nel tracciamento (" + delegate + "): " + e.message; requestAnimationFrame(loop); return; }
+    catch (e) { info.textContent = "Errore tracciamento: " + e.message; requestAnimationFrame(loop); return; }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    let info = `Mani: ${res.landmarks.length} · ${delegate} · ${canvas.width}×${canvas.height}`;
+    let txt = `Mani: ${res.landmarks.length} · ${canvas.width}×${canvas.height}`;
     res.landmarks.forEach((lm, i) => {
-      draw.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: "#39d0ff", lineWidth: 4 });
+      draw.drawConnectors(lm, mp.HandLandmarker.HAND_CONNECTIONS, { color: "#39d0ff", lineWidth: 4 });
       draw.drawLandmarks(lm, { color: "#ffffff", fillColor: "#39d0ff", radius: 5 });
       // pollice (4) e indice (8): servono per il pinch
       draw.drawLandmarks([lm[4], lm[8]], { color: "#ffffff", fillColor: "#ff4fa3", radius: 11 });
       draw.drawConnectors([lm[4], lm[8]], [{ start: 0, end: 1 }], { color: "#ff4fa3", lineWidth: 3 });
       const d = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
       const side = res.handednesses?.[i]?.[0]?.categoryName ?? "?";
-      info += `<br>${side}: distanza 4–8 = ${d.toFixed(3)}`;
+      txt += `<br>${side}: distanza 4–8 = ${d.toFixed(3)}`;
     });
-    hud.innerHTML = info;
+    info.innerHTML = txt;
   }
   requestAnimationFrame(loop);
 }
 
-document.getElementById("start").addEventListener("click", async () => {
+startBtn.addEventListener("click", async () => {
+  startBtn.disabled = true;
   try {
-    msg.textContent = "Apro la fotocamera…";
-    await openCamera();
-    try { landmarker = await loadModel("CPU"); }
-    catch (e) { console.warn(e); delegate = "GPU"; landmarker = await loadModel("GPU"); }
-    hud.textContent = "Mostra la mano alla fotocamera (" + delegate + ")";
-    flip.hidden = false;
-    loop();
+    await openCamera(true);              // richiesta semplice, come webcamtests
+    startBtn.hidden = true; flipBtn.hidden = false; hideBtn.hidden = false;
+    if (!landmarker) await loadMediaPipe();
+    if (!running) { running = true; loop(); }
   } catch (e) {
-    msg.textContent = "Errore: " + e.name + " · " + e.message;
-    document.getElementById("intro").hidden = false;
-    hud.hidden = false; hud.textContent = msg.textContent;
-    console.error(e);
+    log("ERRORE: " + e.name + " · " + e.message);
+    startBtn.disabled = false;
   }
 });
 
-window.addEventListener("pagehide", () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
-
-flip.addEventListener("click", async () => {
-  facing = facing === "user" ? "environment" : "user";
-  try { await openCamera(); } catch (e) { hud.textContent = "Errore: " + e.message; }
+flipBtn.addEventListener("click", async () => {
+  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); }
+  catch (e) { log("ERRORE cambio fotocamera: " + e.name + " · " + e.message); }
 });
+
+hideBtn.addEventListener("click", () => {
+  const l = document.getElementById("log");
+  l.hidden = !l.hidden;
+  hideBtn.textContent = l.hidden ? "Mostra diario" : "Nascondi diario";
+});
+
+window.addEventListener("pagehide", () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
+log("pronto: premi «Apri la fotocamera»");
 </script>
 </body>
 </html>
