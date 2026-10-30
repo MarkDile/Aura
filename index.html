@@ -32,9 +32,9 @@
 
 <div id="intro">
   <h1>Aura</h1>
-  <p>Test 2 (v4, con diagnosi): la pagina disegna i 21 punti della mano sopra il video. Punta del pollice (4) e dell'indice (8) sono evidenziate.</p>
+  <p>Test 2 (v5): la pagina disegna i 21 punti della mano sopra il video. Punta del pollice (4) e dell'indice (8) sono evidenziate.</p>
   <button id="start">Apri la fotocamera</button>
-  <small id="msg">versione 4</small>
+  <small id="msg">versione 5</small>
 </div>
 
 <div id="hud" hidden>Carico il modello…</div>
@@ -81,11 +81,30 @@ async function loadModel(d) {
 }
 
 async function openCamera() {
-  if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } }
-  });
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null;
+                video.srcObject = null; await new Promise(r => setTimeout(r, 300)); }
+  // tentativi dal più preciso al più semplice: alcuni Samsung rifiutano i vincoli
+  const tries = [
+    { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
+    { facingMode: facing },
+    true
+  ];
+  let lastErr = null;
+  for (const v of tries) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: v });
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (e.name !== "NotReadableError" && e.name !== "OverconstrainedError") throw e;
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  if (!stream) {
+    if (lastErr && lastErr.name === "NotReadableError")
+      throw new Error("la fotocamera è occupata o bloccata. Chiudi le altre schede e app che la usano (anche la pagina vecchia), poi riprova.");
+    throw lastErr;
+  }
   video.srcObject = stream;
   await video.play();
   const m = facing === "user";
@@ -137,6 +156,8 @@ document.getElementById("start").addEventListener("click", async () => {
     console.error(e);
   }
 });
+
+window.addEventListener("pagehide", () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
 
 flip.addEventListener("click", async () => {
   facing = facing === "user" ? "environment" : "user";
