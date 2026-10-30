@@ -32,9 +32,9 @@
 
 <div id="intro">
   <h1>Aura</h1>
-  <p>Test 2 (v6): la pagina disegna i 21 punti della mano sopra il video. Punta del pollice (4) e dell'indice (8) sono evidenziate.</p>
+  <p>Test 2 (v7): la pagina disegna i 21 punti della mano sopra il video. Punta del pollice (4) e dell'indice (8) sono evidenziate.</p>
   <button id="start">Apri la fotocamera</button>
-  <small id="msg">versione 6</small>
+  <small id="msg">versione 7</small>
 </div>
 
 <div id="hud" hidden>Carico il modello…</div>
@@ -69,6 +69,9 @@ let landmarker = null;
 let facing = "user";          // frontale: comoda per provare sulla propria mano
 let stream = null;
 let lastVideoTime = -1;
+let firstOpen = true;
+let permState = "?";
+try { navigator.permissions.query({ name: "camera" }).then(r => { permState = r.state; r.onchange = () => permState = r.state; }); } catch (e) {}
 
 async function loadModel(d) {
   hud.textContent = "Carico il modello (" + d + ")…";
@@ -89,20 +92,23 @@ async function openCamera() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null;
                 video.srcObject = null; await new Promise(r => setTimeout(r, 300)); }
   // tentativi dal più preciso al più semplice: alcuni Samsung rifiutano i vincoli
-  const tries = [
-    { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
-    { facingMode: facing },
-    true
-  ];
+  // prima la richiesta più semplice (come webcamtests e la versione 2, che funzionavano)
+  const tries = firstOpen ? [true, { facingMode: facing }] : [{ facingMode: facing }, true];
+  firstOpen = false;
   let lastErr = null;
   for (const v of tries) {
     try {
-      msg.textContent = "Chiedo la fotocamera…";
-      stream = await withTimeout(navigator.mediaDevices.getUserMedia({ audio: false, video: v }), 10000, "Fotocamera");
+      const t0 = Date.now();
+      const tick = setInterval(() => {
+        msg.textContent = `Chiedo la fotocamera… ${Math.round((Date.now()-t0)/1000)} s · permesso: ${permState} · prova ${tries.indexOf(v)+1}/${tries.length}`;
+      }, 500);
+      try {
+      stream = await withTimeout(navigator.mediaDevices.getUserMedia({ audio: false, video: v }), 8000, "Fotocamera");
+      } finally { clearInterval(tick); }
       break;
     } catch (e) {
       lastErr = e;
-      if (e.name !== "NotReadableError" && e.name !== "OverconstrainedError") throw e;
+      if (e.name === "NotAllowedError") throw e;   // permesso negato: inutile riprovare
       await new Promise(r => setTimeout(r, 500));
     }
   }
@@ -132,6 +138,8 @@ async function openCamera() {
     }
     await new Promise(r => setTimeout(r, 200));
   }
+  const st = stream.getVideoTracks()[0]?.getSettings?.() || {};
+  if (st.facingMode) facing = st.facingMode;
   const m = facing === "user";
   video.classList.toggle("mirror", m);
   canvas.classList.toggle("mirror", m);
