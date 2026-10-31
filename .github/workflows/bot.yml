@@ -1,25 +1,42 @@
 name: Aura bot
 
 on:
-  workflow_dispatch:      # avvio a mano: Actions > Aura bot > Run workflow
-  schedule:               # ogni mattina alle 7:30 ora italiana
-    - cron: "30 5 * * *"  # 7:30 con l'ora legale (estate)
-    - cron: "30 6 * * *"  # 7:30 con l'ora solare (inverno)
+  workflow_dispatch:        # avvio a mano: Actions > Aura bot > Run workflow
+  schedule:
+    - cron: "*/30 * * * *"  # ogni 30 minuti: legge i comandi; dalle 7:30 manda l'azione del giorno
 
 permissions:
-  contents: read
+  contents: write           # serve per salvare azioni.json nel repository
+
+concurrency:
+  group: aura-bot           # mai due giri insieme
+  cancel-in-progress: false
 
 jobs:
-  invia:
+  giro:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Manda l'azione del giorno
+      - name: Leggi i comandi e manda i messaggi
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          CRON: ${{ github.event.schedule }}
         run: python bot/bot.py
+      - name: Salva le modifiche nel repository
+        run: |
+          git add bot/azioni.json bot/stato_bot.json
+          if git diff --cached --quiet; then
+            echo "Nessuna modifica da salvare."
+          else
+            git config user.name "Aura Coach"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Aura Coach: aggiornamento da Telegram"
+            git pull --rebase
+            git push
+          fi
+          # Se il salvataggio non riesce, Telegram ripropone gli stessi messaggi al giro dopo:
+          # nessun comando va perso e nessuno viene contato due volte.
