@@ -231,8 +231,8 @@
       "dettaglio": "Claude aggiunge i comandi: /fatto <nota> spunta l'azione del giorno con data e nota, /oggi la rimanda, /stato riassume a che punto sei. Il workflow gira ogni 30 minuti, legge i messaggi nuovi (getUpdates con offset salvato), aggiorna azioni.json e fa commit nel repository (permesso contents: write). Risponde solo al tuo chat id.",
       "base": 10.5,
       "risultato": "Spunta e note da Telegram salvate nel repository",
-      "fatto": false,
-      "fattoIl": null
+      "fatto": true,
+      "fattoIl": "2026-10-31"
     },
     {
       "id": "a012",
@@ -243,9 +243,10 @@
       "dettaglio": "Claude aggiunge Three.js: una sfera con la texture della Terra al centro dello schermo, sopra il video della fotocamera. Tu la carichi e verifichi che ruoti.",
       "base": 11,
       "risultato": "Terra 3D sopra il video",
-      "fatto": false,
-      "fattoIl": null,
-      "appunti": "FILE INVIATO (31/10)\n• index.html versione 10, costruita sulla v9 (fps, diario, fotocamera che si spegne in background restano uguali).\n• Ordine di avvio: fotocamera → MediaPipe → Three.js 0.170.0 (cdn.jsdelivr.net) → earth.jpg.\n• La Terra è una sfera con la mappa Blue Marble, asse inclinato di 23,4°, un giro ogni circa 18 s, luce da sinistra in alto. Occupa circa il 40% del lato corto dello schermo, al centro. Sta su un livello trasparente sopra il video e non è specchiata.\n• Il diario scrive: «WebGL OK · texture massima N px», «earth.jpg caricata: L×A», «Terra pronta». Se qualcosa va storto: «ERRORE Terra: …».\n• Provata qui con fotocamera finta, MediaPipe simulato e Three.js vero, in verticale e in orizzontale: la Terra compare e ruota.\n\nPASSI\n• Repo Aura → Add file → Upload files → index.html (rinomina se è index(1).html) → Commit.\n• Apri https://markdile.github.io/Aura/index.html?nc=10\n• Controlla che la Terra ruoti e premi «Nascondi diario» per vederla intera.\n\nCOSA SCRIVERE NELLA NOTA\n• Ruota? Si vede bene? Fps medi con la Terra (prima erano circa 15 sul Samsung) e la riga «texture massima».\n\nSE SERVE\n• earth.jpg è 5400×2700, 2,5 MB: se la pagina è lenta ad aprirsi in mobilità, ridurla a 2048×1024 con squoosh.app."
+      "fatto": true,
+      "fattoIl": "2026-10-31",
+      "appunti": "FILE INVIATO (31/10)\n• index.html versione 10, costruita sulla v9 (fps, diario, fotocamera che si spegne in background restano uguali).\n• Ordine di avvio: fotocamera → MediaPipe → Three.js 0.170.0 (cdn.jsdelivr.net) → earth.jpg.\n• La Terra è una sfera con la mappa Blue Marble, asse inclinato di 23,4°, un giro ogni circa 18 s, luce da sinistra in alto. Occupa circa il 40% del lato corto dello schermo, al centro. Sta su un livello trasparente sopra il video e non è specchiata.\n• Il diario scrive: «WebGL OK · texture massima N px», «earth.jpg caricata: L×A», «Terra pronta». Se qualcosa va storto: «ERRORE Terra: …».\n• Provata qui con fotocamera finta, MediaPipe simulato e Three.js vero, in verticale e in orizzontale: la Terra compare e ruota.\n\nPASSI\n• Repo Aura → Add file → Upload files → index.html (rinomina se è index(1).html) → Commit.\n• Apri https://markdile.github.io/Aura/index.html?nc=10\n• Controlla che la Terra ruoti e premi «Nascondi diario» per vederla intera.\n\nCOSA SCRIVERE NELLA NOTA\n• Ruota? Si vede bene? Fps medi con la Terra (prima erano circa 15 sul Samsung) e la riga «texture massima».\n\nSE SERVE\n• earth.jpg è 5400×2700, 2,5 MB: se la pagina è lenta ad aprirsi in mobilità, ridurla a 2048×1024 con squoosh.app.",
+      "nota": "bot v3 caricato"
     },
     {
       "id": "b008",
