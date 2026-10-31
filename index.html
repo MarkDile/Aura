@@ -8,6 +8,7 @@
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #eee;
     font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+  #three { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
   video, canvas { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .mirror { transform: scaleX(-1); }
   #panel { position: fixed; left: 0; right: 0; top: 0; z-index: 3; padding: 12px;
@@ -28,14 +29,15 @@
 <body>
 <video id="video" playsinline muted autoplay></video>
 <canvas id="canvas"></canvas>
+<canvas id="three"></canvas>
 
 <div id="fps" hidden><b id="fpsNow">–</b> fps<br><span id="fpsMore">media 10 s: –</span></div>
 <div id="panel">
-  <h1>Aura <span id="ver">versione 9 · <span id="clock">0</span> s</span></h1>
+  <h1>Aura <span id="ver">versione 10 · <span id="clock">0</span> s</span></h1>
   <button id="start">Apri la fotocamera</button>
   <button id="flip" class="sec" hidden>Cambia fotocamera</button>
   <button id="hide" class="sec" hidden>Nascondi diario</button>
-  <div id="info">Test 3: fotogrammi al secondo (in basso a destra). Tieni la mano davanti alla fotocamera 10 secondi.</div>
+  <div id="info">Test 4: la Terra 3D al centro dello schermo, sopra il video. Deve ruotare piano.</div>
   <div id="log"></div>
 </div>
 
@@ -71,10 +73,11 @@ const hideBtn = document.getElementById("hide");
 const log = window.log;
 
 const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js";
 const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 
 let stream = null, facing = null, landmarker = null, mp = null, draw = null;
-let lastVideoTime = -1, running = false;
+let lastVideoTime = -1, running = false, earthLoaded = false;
 
 // --- contatore fps: fotogrammi analizzati al secondo + tempo del tracciamento ---
 const fpsBox = document.getElementById("fps");
@@ -133,6 +136,52 @@ async function loadMediaPipe() {
   log("modello pronto: mostra la mano");
 }
 
+// --- Terra 3D con Three.js (si carica dopo fotocamera e MediaPipe) ---
+async function loadEarth() {
+  log("carico Three.js…");
+  const THREE = await import(THREE_URL);
+  const el = document.getElementById("three");
+  const renderer = new THREE.WebGLRenderer({ canvas: el, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  cam.position.z = 5;
+  scene.add(new THREE.AmbientLight(0xffffff, 1.3));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  sun.position.set(-2, 1.5, 5);
+  scene.add(sun);
+  const max = renderer.capabilities.maxTextureSize;
+  log("WebGL OK · texture massima " + max + " px");
+  const tex = await new THREE.TextureLoader().loadAsync("earth.jpg");
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  log("earth.jpg caricata: " + tex.image.width + "×" + tex.image.height);
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 64, 32),
+    new THREE.MeshPhongMaterial({ map: tex, shininess: 12 })
+  );
+  earth.rotation.x = 0.41; // inclinazione dell'asse terrestre (23,4°)
+  scene.add(earth);
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false);
+    cam.aspect = w / h;
+    // la Terra (diametro 2) occupa circa il 40% del lato più corto dello schermo
+    const altezzaVisibile = (w < h ? 5 / cam.aspect : 5);
+    cam.position.z = altezzaVisibile / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)));
+    cam.updateProjectionMatrix();
+  }
+  addEventListener("resize", resize); resize();
+  let prev = performance.now();
+  renderer.setAnimationLoop(t => {
+    const dt = (t - prev) / 1000; prev = t;
+    earth.rotation.y += dt * 0.35;      // un giro ogni ~18 s
+    renderer.render(scene, cam);
+  });
+  log("Terra pronta");
+}
+
 function loop() {
   if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
     lastVideoTime = video.currentTime;
@@ -167,6 +216,10 @@ startBtn.addEventListener("click", async () => {
     if (!landmarker) await loadMediaPipe();
     fpsBox.hidden = false; resetFps();
     if (!running) { running = true; loop(); }
+    if (!earthLoaded) {
+      earthLoaded = true;
+      loadEarth().catch(e => { earthLoaded = false; log("ERRORE Terra: " + (e.name || "") + " · " + (e.message || e)); });
+    }
   } catch (e) {
     log("ERRORE: " + e.name + " · " + e.message);
     startBtn.disabled = false;
