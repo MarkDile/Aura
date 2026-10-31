@@ -28,6 +28,10 @@
     background: rgba(0,0,0,.7); color: #fff; border-radius: 12px; padding: 8px 12px;
     font: 600 15px/1.35 ui-monospace, monospace; }
   #pinch b { font-size: 30px; color: #ff4fa3; }
+  #etichetta { position: fixed; z-index: 3; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity .25s;
+    background: rgba(0,0,0,.72); color: #fff; border: 1px solid rgba(255,255,255,.5); border-radius: 10px;
+    padding: 6px 10px; font: 600 15px/1.2 system-ui, sans-serif; white-space: nowrap; transform: translate(-50%, -100%); }
+  #etichetta.on { opacity: 1; }
 </style>
 </head>
 <body>
@@ -36,19 +40,21 @@
 <canvas id="three"></canvas>
 
 <div id="fps" hidden><b id="fpsNow">–</b> fps<br><span id="fpsMore">media 10 s: –</span></div>
+<div id="etichetta">Luna · 384.400 km</div>
 <div id="pinch" hidden>pinch <b id="pinchN">0</b><br><span id="pinchState">aperto</span></div>
 <div id="panel">
-  <h1>Aura <span id="ver">versione 11 · <span id="clock">0</span> s</span></h1>
+  <h1>Aura <span id="ver">versione 12 · <span id="clock">0</span> s</span></h1>
   <button id="start">Apri la fotocamera</button>
   <span id="tools" hidden>
     <button id="flip" class="sec">Cambia fotocamera</button>
     <button id="filter" class="sec">Filtro: B</button>
     <button id="engine" class="sec">Motore: GPU</button>
     <button id="skel" class="sec">Scheletro: sì</button>
+    <button id="suoni" class="sec">Suoni: sì</button>
     <button id="zero" class="sec">Azzera pinch</button>
     <button id="hide" class="sec">Nascondi diario</button>
   </span>
-  <div id="info">Apri il palmo verso il telefono per mezzo secondo: compare la Terra con la Luna. Pollice e indice che si toccano = pinch.</div>
+  <div id="info">Palmo aperto per mezzo secondo: compare la Terra. Pizzicala e portala dove vuoi; ruota il polso per farla girare; pinch con due mani e allarga per ingrandirla; tocca la Luna con l'indice. Quando la lasci resta lì: per riprenderla tieni il palmo aperto sotto di lei per 1 secondo.</div>
   <div id="log"></div>
 </div>
 
@@ -98,6 +104,15 @@ const PALMO_APERTO_MS = 500; // mezzo secondo di palmo aperto per far comparire 
 const MANO_PERSA_MS = 600;   // dopo quanto la Terra sparisce se la mano non si vede
 const RAGGIO_TERRA = 0.42;   // raggio della Terra rispetto alla misura della mano (0–9)
 const SOPRA_PALMO = 0.55;    // quanto sopra il centro del palmo (in misure di mano, verso l'alto dello schermo)
+const PRESA_RAGGI = 1.6;     // il pinch afferra la Terra se avviene entro 1,6 raggi dal suo centro
+const RITORNO_MS = 1000;     // palmo aperto sotto la Terra lasciata: dopo 1 s torna sul palmo
+const RITORNO_RAGGI = 2.5;   // ...se il centro del palmo è entro 2,5 raggi dalla Terra
+const VERSO_ROTAZIONE = 1;   // 1 o -1: verso in cui la Terra gira quando ruoti il polso (azione 22)
+const GUADAGNO_ROTAZIONE = 1.5; // 1 = la Terra gira quanto il polso; 1,5 = un po' di più
+const SCATTO_GRADI = 15;    // un "tic" (vibrazione/suono) ogni 15° di rotazione
+const ZOOM_MIN = 0.5, ZOOM_MAX = 3; // zoom a due mani: da metà a 3 volte (azione 23)
+const LUNA_TOCCO = 1.6;     // il dito tocca la Luna entro 1,6 raggi della Luna (più 12 px di margine) (azione 24)
+const LUNA_ETICHETTA_MS = 2500;
 // ==========================================================================
 
 let stream = null, facing = null, landmarker = null, mp = null, files = null, draw = null;
@@ -181,9 +196,62 @@ const scena = {
   visibile: false, comparsa: 0,           // 0 = nascosta, 1 = del tutto comparsa
   target: null, raggio: 60,               // in pixel sullo schermo
   pos: null, r: 60,                       // posizione con la "molla"
-  apertoDa: 0, ultimaMano: 0,
+  apertoDa: 0, manoPalmo: null, ultimoPalmo: 0,
+  modo: "palmo",                          // palmo = segue il palmo · presa = segue il pinch · libera = resta dove l'hai lasciata
+  presaDi: null, offset: null, rPresa: 60, armato: false, ritornoDa: 0,
+  spin: 0, giro: null,                    // rotazione data col polso (radianti)
+  zoomUtente: 1, zoomGesto: null,         // zoom a due mani
+  luna: null,                             // posizione della Luna sullo schermo (calcolata da Three.js)
 };
-const pinch = { chiuso: false, conta: 0, punto: null, forza: 0 };
+const pinch = { conta: 0 };               // pinch riconosciuti (tutte le mani)
+const mani = {};                          // stato per mano: { chiuso, punto, misura, visto }
+
+// ---------------- vibrazioni e suoni (azione 25) ----------------
+// Android: vibrazione. iPhone (Safari non vibra): piccoli suoni. I suoni si attivano al primo tocco dello schermo.
+let audio = null, suoni = !("vibrate" in navigator);
+const FEEDBACK = {
+  comparsa: { v: 20,           s: [[660, 0.06], [990, 0.09]] },
+  pinch:    { v: 12,           s: [[1400, 0.02]] },
+  presa:    { v: 30,           s: [[1100, 0.03]] },
+  rilascio: { v: [15, 60, 15], s: [[800, 0.03], [0, 0.05], [800, 0.03]] },
+  scatto:   { v: 8,            s: [[2200, 0.012]], vol: 0.05 },
+  zoom:     { v: 10,           s: [[520, 0.02]], vol: 0.07 },
+  luna:     { v: 25,           s: [[880, 0.08]] },
+  ritorno:  { v: 20,           s: [[700, 0.04], [990, 0.05]] },
+};
+function sbloccaAudio() {
+  try {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === "suspended") audio.resume();
+  } catch (e) {}
+}
+addEventListener("pointerdown", sbloccaAudio);
+function feedback(tipo) {
+  const f = FEEDBACK[tipo]; if (!f) return;
+  try { navigator.vibrate && navigator.vibrate(f.v); } catch (e) {}
+  if (!suoni || !audio || audio.state !== "running") return;
+  let t = audio.currentTime;
+  for (const [freq, dur] of f.s) {
+    if (freq) {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = "sine"; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(f.vol || 0.12, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(audio.destination); o.start(t); o.stop(t + dur + 0.02);
+    }
+    t += dur;
+  }
+}
+
+// angolo della linea delle nocche (indice 5 → mignolo 17): cambia quando ruoti il polso
+const angoloMano = s => Math.atan2(s[17].y - s[5].y, s[17].x - s[5].x);
+const differenza = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+
+// ---------------- etichetta della Luna ----------------
+const etichetta = document.getElementById("etichetta");
+let lunaFinoA = 0, lunaUltimoTocco = 0, lunaDentro = false;
+function mostraLuna(t) { lunaFinoA = t + LUNA_ETICHETTA_MS; etichetta.classList.add("on"); feedback("luna"); log("tocco sulla Luna"); }
 
 // ---------------- MediaPipe ----------------
 async function creaLandmarker(delegate) {
@@ -225,9 +293,10 @@ async function caricaScena3D() {
   const scene = new THREE.Scene();
   // camera ortografica in pixel: 1 unità = 1 pixel dello schermo, (0,0) in alto a sinistra
   const cam = new THREE.OrthographicCamera(0, 1, 0, 1, -2000, 2000);
-  scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.4);
-  sun.position.set(-1, -0.6, 1.2);
+  // luce del Sole di lato: metà Terra illuminata, metà in ombra (giorno e notte)
+  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  const sun = new THREE.DirectionalLight(0xffffff, 3.2);
+  sun.position.set(-1, -0.35, 0.55);
   scene.add(sun);
 
   const tex = await new THREE.TextureLoader().loadAsync("earth.jpg");
@@ -262,7 +331,8 @@ async function caricaScena3D() {
   }
   addEventListener("resize", resize); resize();
 
-  let prev = performance.now();
+  let prev = performance.now(), autoGiro = 0;
+  const vLuna = new THREE.Vector3();
   renderer.setAnimationLoop(t => {
     const dt = Math.min((t - prev) / 1000, 0.1); prev = t;
     // comparsa / scomparsa con una piccola animazione (circa 0,3 s)
@@ -276,18 +346,28 @@ async function caricaScena3D() {
       scena.pos.y += (scena.target.y - scena.pos.y) * k;
       scena.r += (scena.raggio - scena.r) * k;
     }
-    const s = scena.r * (0.2 + 0.8 * easeOutBack(scena.comparsa));
+    scena.zoom = (scena.zoom || 1) + (((scena.modo === "presa") ? 1.1 : 1) - (scena.zoom || 1)) * (1 - Math.exp(-dt * 12));
+    scena.zoomVisto = (scena.zoomVisto || 1) + (scena.zoomUtente - (scena.zoomVisto || 1)) * (1 - Math.exp(-dt * 16));
+    const s = scena.r * scena.zoom * scena.zoomVisto * (0.2 + 0.8 * easeOutBack(scena.comparsa));
     sistema.visible = scena.comparsa > 0.02 && !!scena.pos;
     if (scena.pos) sistema.position.set(scena.pos.x, scena.pos.y, 0);
     sistema.scale.setScalar(Math.max(s, 0.001));
-    terra.rotation.y += dt * 0.35;                 // un giro ogni ~18 s
+    if (scena.modo !== "presa") autoGiro += dt * 0.35;   // un giro ogni ~18 s; fermo mentre la tieni
+    terra.rotation.y = autoGiro + scena.spin;
     orbita.rotation.y += dt * 0.9;                 // la Luna gira intorno in ~7 s
+    // dove sta la Luna sullo schermo (per il tocco e l'etichetta)
+    if (sistema.visible) {
+      luna.getWorldPosition(vLuna);
+      scena.luna = { x: vLuna.x, y: vLuna.y, z: vLuna.z - sistema.position.z, r: 0.27 * s };
+      etichetta.style.left = vLuna.x + "px"; etichetta.style.top = (vLuna.y - 0.27 * s - 8) + "px";
+    } else scena.luna = null;
+    if (etichetta.classList.contains("on") && (performance.now() > lunaFinoA || !sistema.visible)) etichetta.classList.remove("on");
     // alone del pinch
-    const vis = pinch.chiuso && pinch.punto;
-    alone.material.opacity += ((vis ? 0.9 : 0) - alone.material.opacity) * (1 - Math.exp(-dt * 18));
-    if (pinch.punto) {
-      alone.position.set(pinch.punto.x, pinch.punto.y, 1000);
-      alone.scale.setScalar((pinch.misura || 60) * 0.35);
+    const chiusa = Object.values(mani).find(h => h.chiuso && h.punto);
+    alone.material.opacity += ((chiusa ? 0.9 : 0) - alone.material.opacity) * (1 - Math.exp(-dt * 18));
+    if (chiusa) {
+      alone.position.set(chiusa.punto.x, chiusa.punto.y, 1000);
+      alone.scale.setScalar((chiusa.misura || 60) * 0.35);
     }
     renderer.render(scene, cam);
   });
@@ -312,50 +392,137 @@ function loop() {
 
 function aggiorna(res, t) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const mani = res.landmarks.map((lm, i) => {
+  const viste = res.landmarks.map((lm, i) => {
     const lato = res.handednesses?.[i]?.[0]?.categoryName ?? String(i);
     const f = filtra(lm, lato, t);
-    return { lato, f, s: f.map(suSchermo) };
+    const sc = f.map(suSchermo);
+    const misura = dist(sc[0], sc[9]);                          // misura della mano in pixel
+    const centro = media([0, 5, 9, 13, 17].map(i => sc[i]));    // centro del palmo
+    return { lato, f, s: sc, misura, centro, aperto: palmoAperto(sc),
+             sulPalmo: { x: centro.x, y: centro.y - misura * SOPRA_PALMO } };
   });
-
-  if (scheletro) mani.forEach(m => {
+  if (scheletro) viste.forEach(m => {
     draw.drawConnectors(m.f, mp.HandLandmarker.HAND_CONNECTIONS, { color: "#39d0ff", lineWidth: 3 });
     draw.drawLandmarks(m.f, { color: "#ffffff", fillColor: "#39d0ff", radius: 4 });
   });
+  const perLato = Object.fromEntries(viste.map(m => [m.lato, m]));
 
-  // la Terra segue la prima mano vista
-  const m = mani[0];
-  let testo = `Mani: ${mani.length} · filtro ${filtroScelto}${filtroScelto !== "spento" ? " (" + FILTRI[filtroScelto].nome + ")" : ""}`;
-  if (m) {
-    scena.ultimaMano = t;
-    const misura = dist(m.s[0], m.s[9]);                     // misura della mano in pixel
-    const centro = media([0, 5, 9, 13, 17].map(i => m.s[i])); // centro del palmo
-    scena.target = { x: centro.x, y: centro.y - misura * SOPRA_PALMO };
-    scena.raggio = misura * RAGGIO_TERRA;
-    const aperto = palmoAperto(m.s);
-    if (!scena.visibile) {
-      if (aperto) { scena.apertoDa ||= t; if (t - scena.apertoDa >= PALMO_APERTO_MS) { scena.visibile = true; log("palmo aperto: compare la Terra"); } }
-      else scena.apertoDa = 0;
-    }
-    // pinch con isteresi
-    const r = dist(m.s[4], m.s[8]) / misura;
-    if (!pinch.chiuso && r < PINCH_CHIUDE) { pinch.chiuso = true; pinch.conta++; vibra(15); }
-    else if (pinch.chiuso && r > PINCH_APRE) { pinch.chiuso = false; }
-    pinch.punto = media([m.s[4], m.s[8]]); pinch.misura = misura;
-    testo += `<br>${m.lato}: palmo ${aperto ? "aperto" : "chiuso"} · pinch ${r.toFixed(2)} (chiude &lt; ${PINCH_CHIUDE}, apre &gt; ${PINCH_APRE})`;
-  } else {
-    scena.apertoDa = 0;
-    if (pinch.chiuso) pinch.chiuso = false;
-    pinch.punto = null;
-    if (scena.visibile && t - scena.ultimaMano > MANO_PERSA_MS) { scena.visibile = false; log("mano persa: la Terra sparisce"); }
+  // 1. pinch di ogni mano, con isteresi
+  for (const m of viste) {
+    const h = mani[m.lato] ||= { chiuso: false };
+    h.visto = t; h.misura = m.misura;
+    h.rapporto = dist(m.s[4], m.s[8]) / m.misura;
+    h.punto = media([m.s[4], m.s[8]]);
+    h.apre = h.chiude = false;
+    if (!h.chiuso && h.rapporto < PINCH_CHIUDE) { h.chiuso = h.chiude = true; pinch.conta++; }
+    else if (h.chiuso && h.rapporto > PINCH_APRE) { h.chiuso = false; h.apre = true; }
   }
-  if (!scena.visibile && !m) testo += "<br>Mostra il palmo aperto per mezzo secondo";
+  for (const lato in mani) if (!perLato[lato]) { mani[lato].chiuso = false; mani[lato].punto = null; }
+  const chiuse = viste.filter(m => mani[m.lato].chiuso);
+
+  // 2. comparsa: palmo aperto per mezzo secondo
+  if (!scena.visibile) {
+    const aperta = viste.find(m => m.aperto);
+    if (aperta) {
+      scena.apertoDa ||= t;
+      if (t - scena.apertoDa >= PALMO_APERTO_MS) {
+        Object.assign(scena, { visibile: true, modo: "palmo", manoPalmo: aperta.lato, zoomUtente: 1, spin: 0, pos: null });
+        feedback("comparsa"); log("palmo aperto: compare la Terra");
+      }
+    } else scena.apertoDa = 0;
+  }
+
+  // 3. zoom a due mani: entrambe in pinch
+  if (scena.visibile && chiuse.length >= 2) {
+    const [p1, p2] = [mani[chiuse[0].lato].punto, mani[chiuse[1].lato].punto];
+    const d = dist(p1, p2);
+    if (!scena.zoomGesto) { scena.zoomGesto = { d0: Math.max(d, 1), z0: scena.zoomUtente, passo: Math.round(scena.zoomUtente * 4) }; log("zoom a due mani"); }
+    scena.zoomUtente = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scena.zoomGesto.z0 * d / scena.zoomGesto.d0));
+    const passo = Math.round(scena.zoomUtente * 4);           // un tic ogni 0,25×
+    if (passo !== scena.zoomGesto.passo) { scena.zoomGesto.passo = passo; feedback("zoom"); }
+    scena.target = media([p1, p2]);                            // durante lo zoom la Terra sta tra le due mani
+  } else if (scena.zoomGesto) { scena.zoomGesto = null; log("zoom: " + scena.zoomUtente.toFixed(2) + "×"); }
+
+  // 4. presa con una mano: il pinch che si chiude vicino alla Terra la afferra
+  const raggioVisto = scena.r * scena.zoomUtente;
+  for (const m of viste) {
+    const h = mani[m.lato];
+    if (!h.chiude) continue;
+    const altraChiusa = chiuse.some(o => o.lato !== m.lato);
+    const qui = scena.pos || scena.target;
+    if (scena.visibile && !altraChiusa && scena.modo !== "presa" && qui && dist(h.punto, qui) < raggioVisto * PRESA_RAGGI) {
+      Object.assign(scena, { modo: "presa", presaDi: m.lato, offset: { x: qui.x - h.punto.x, y: qui.y - h.punto.y }, rPresa: scena.r });
+      scena.giro = { a0: angoloMano(m.s), spin0: scena.spin, tic: 0 };
+      feedback("presa"); log("presa: la Terra segue il pinch");
+    } else feedback("pinch");
+  }
+  // rilascio: la mano che la teneva apre le dita o sparisce
+  if (scena.modo === "presa") {
+    const m = perLato[scena.presaDi], h = mani[scena.presaDi];
+    if (!m || !h.chiuso) {
+      Object.assign(scena, { modo: "libera", presaDi: null, giro: null, armato: false, ritornoDa: 0 });
+      feedback("rilascio"); log(m ? "rilasciata: la Terra resta qui" : "mano persa durante la presa: la Terra resta qui");
+    }
+  }
+
+  // 5. posizione della Terra secondo il modo
+  if (scena.modo === "palmo") {
+    const m = perLato[scena.manoPalmo] || viste[0];
+    if (m) {
+      scena.manoPalmo = m.lato; scena.ultimoPalmo = t;
+      if (!scena.zoomGesto) scena.target = { x: m.sulPalmo.x, y: m.sulPalmo.y - m.misura * RAGGIO_TERRA * (scena.zoomUtente - 1) };
+      scena.raggio = m.misura * RAGGIO_TERRA;
+    } else if (scena.visibile && t - scena.ultimoPalmo > MANO_PERSA_MS) {
+      scena.visibile = false; log("mano persa: la Terra sparisce");
+    }
+  } else if (scena.modo === "presa") {
+    const m = perLato[scena.presaDi], h = mani[scena.presaDi];
+    scena.target = { x: h.punto.x + scena.offset.x, y: h.punto.y + scena.offset.y };
+    scena.raggio = scena.rPresa;
+    // rotazione col polso: la Terra gira sul suo asse (giorno e notte), un tic ogni 15°
+    const delta = differenza(angoloMano(m.s), scena.giro.a0);
+    scena.spin = scena.giro.spin0 + VERSO_ROTAZIONE * GUADAGNO_ROTAZIONE * delta;
+    const tic = Math.trunc(delta * 180 / Math.PI / SCATTO_GRADI);
+    if (tic !== scena.giro.tic) { scena.giro.tic = tic; feedback("scatto"); }  // un tic per ogni cambio di 15°
+  } else if (scena.modo === "libera") {
+    // resta dov'è; palmo aperto sotto di lei per 1 s = torna sul palmo (solo dopo che la mano si è allontanata)
+    const vicina = viste.find(m => scena.pos && dist(m.sulPalmo, scena.pos) < raggioVisto * RITORNO_RAGGI);
+    if (!vicina) { scena.armato = true; scena.ritornoDa = 0; }
+    else if (scena.armato && vicina.aperto && !mani[vicina.lato].chiuso) {
+      scena.ritornoDa ||= t;
+      if (t - scena.ritornoDa >= RITORNO_MS) {
+        Object.assign(scena, { modo: "palmo", manoPalmo: vicina.lato, ritornoDa: 0 });
+        feedback("ritorno"); log("di nuovo sul palmo");
+      }
+    } else scena.ritornoDa = 0;
+  }
+
+  // 6. tocco della Luna con la punta dell'indice (dito libero, Luna davanti alla Terra)
+  let sopra = false;
+  if (scena.luna && scena.luna.z > 0) {
+    for (const m of viste) {
+      if (mani[m.lato].chiuso || m.lato === scena.presaDi) continue;
+      const d = dist(m.s[8], scena.luna), soglia = scena.luna.r * LUNA_TOCCO + 12;
+      if (d < soglia * (lunaDentro ? 1.4 : 1)) sopra = true;   // isteresi: per uscire bisogna allontanarsi un po' di più
+    }
+  }
+  if (sopra && !lunaDentro && t - lunaUltimoTocco > 800) { lunaUltimoTocco = t; mostraLuna(performance.now()); }
+  lunaDentro = sopra;
+
+  // 7. pannello
+  const nomi = { palmo: "sul palmo", presa: "presa", libera: "lasciata" };
+  let testo = `Mani: ${viste.length} · filtro ${filtroScelto}${filtroScelto !== "spento" ? " (" + FILTRI[filtroScelto].nome + ")" : ""}`;
+  for (const m of viste) testo += `<br>${m.lato}: palmo ${m.aperto ? "aperto" : "chiuso"} · pinch ${mani[m.lato].rapporto.toFixed(2)} (chiude &lt; ${PINCH_CHIUDE}, apre &gt; ${PINCH_APRE})`;
+  if (scena.visibile) {
+    testo += `<br>Terra: ${nomi[scena.modo]} · ${scena.zoomUtente.toFixed(2)}× · rotazione ${Math.round(scena.spin * 180 / Math.PI)}°`;
+    if (scena.ritornoDa) testo += " · torna sul palmo…";
+  } else if (!viste.length) testo += "<br>Mostra il palmo aperto per mezzo secondo";
   info.innerHTML = testo;
+  const qualcunaChiusa = chiuse.length > 0;
   $("pinchN").textContent = pinch.conta;
-  $("pinchState").textContent = pinch.chiuso ? "chiuso" : "aperto";
-  $("pinchN").style.color = pinch.chiuso ? "#ff4fa3" : "#fff";
+  $("pinchState").textContent = qualcunaChiusa ? "chiuso" : "aperto";
+  $("pinchN").style.color = qualcunaChiusa ? "#ff4fa3" : "#fff";
 }
-function vibra(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} }
 
 // ---------------- fotocamera ----------------
 async function openCamera(constraints) {
@@ -413,6 +580,12 @@ $("skel").addEventListener("click", e => {
   scheletro = !scheletro;
   e.target.textContent = "Scheletro: " + (scheletro ? "sì" : "no");
   if (!scheletro) ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
+$("suoni").textContent = "Suoni: " + (suoni ? "sì" : "no");
+$("suoni").addEventListener("click", e => {
+  suoni = !suoni; sbloccaAudio();
+  e.target.textContent = "Suoni: " + (suoni ? "sì" : "no");
+  if (suoni) setTimeout(() => feedback("luna"), 50);
 });
 $("zero").addEventListener("click", () => { pinch.conta = 0; $("pinchN").textContent = "0"; log("contatore pinch azzerato"); });
 $("hide").addEventListener("click", e => {
