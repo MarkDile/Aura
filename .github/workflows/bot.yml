@@ -1,0 +1,21 @@
+name: Aura bot
+
+on:
+  workflow_dispatch:   # avvio a mano: Actions > Aura bot > Run workflow
+
+permissions:
+  contents: read
+
+jobs:
+  invia:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Manda il messaggio
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python bot/bot.py
