@@ -179,8 +179,9 @@
    "dettaglio": "Claude esporta tutte le azioni del percorso (con fatto, data e note) in bot/azioni.json, stesso formato di questa pagina. Tu lo carichi nel repository. Da qui il bot sa a che punto sei.",
    "base": 8.5,
    "risultato": "bot/azioni.json con tutto il percorso nel repository",
-   "fatto": false,
-   "fattoIl": null
+   "fatto": true,
+   "fattoIl": "2026-10-31",
+   "appunti": "FILE INVIATO (31/10)\n• azioni.json (formato 1): le 70 azioni in ordine di n, con id, fase, chi, titolo, dettaglio, base, risultato, fatto, fattoIl, nota e appunti. Esportato il 31/10 con 13 azioni fatte.\n• L'immagine dell'azione 7 non è inclusa (resta solo nella pagina).\n\nATTENZIONE: IL REPOSITORY È PUBBLICO\n• Tutto ciò che sta in azioni.json lo può leggere chiunque, note comprese.\n• Nella nota dell'azione 2 l'indirizzo email è stato sostituito con [email nascosta].\n• Da qui in avanti non scrivere nelle note dati personali, token o numeri di chat.\n\nPASSI\n• Repo Aura → entra nella cartella bot → Add file → Upload files → azioni.json → Commit. (Caricandolo da dentro la cartella bot finisce in bot/azioni.json.)\n• Controlla che il file si apra su GitHub e mostri l'elenco.\n\nNOTA\n• Per ora è una fotografia: se spunti azioni nella pagina, il file non si aggiorna da solo. Il collegamento arriva con le azioni 10.5 (lettura) e 11.5 (/fatto da Telegram)."
   },
   {
    "id": "a010",
@@ -191,8 +192,8 @@
    "dettaglio": "Prova la pagina in cucina, vicino a una finestra e la sera con luce bassa. Annota dove il tracciamento perde la mano.",
    "base": 9,
    "risultato": "Mappa delle luci in cui il tracciamento funziona",
-   "fatto": false,
-   "fattoIl": null
+   "fatto": true,
+   "fattoIl": "2026-10-31"
   },
   {
    "id": "b006",
