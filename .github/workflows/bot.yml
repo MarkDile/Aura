@@ -1,7 +1,10 @@
 name: Aura bot
 
 on:
-  workflow_dispatch:   # avvio a mano: Actions > Aura bot > Run workflow
+  workflow_dispatch:      # avvio a mano: Actions > Aura bot > Run workflow
+  schedule:               # ogni mattina alle 7:30 ora italiana
+    - cron: "30 5 * * *"  # 7:30 con l'ora legale (estate)
+    - cron: "30 6 * * *"  # 7:30 con l'ora solare (inverno)
 
 permissions:
   contents: read
@@ -14,8 +17,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Manda il messaggio
+      - name: Manda l'azione del giorno
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CRON: ${{ github.event.schedule }}
         run: python bot/bot.py
