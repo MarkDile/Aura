@@ -19,18 +19,23 @@
   #info { font-size: 14px; line-height: 1.5; margin-top: 6px; }
   #log { font: 12px/1.4 ui-monospace, monospace; color: #9fe; margin-top: 6px; max-height: 30vh; overflow: auto; white-space: pre-wrap; }
   #ver { color: #888; font-size: 12px; }
+  #fps { position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 4;
+    background: rgba(0,0,0,.7); color: #fff; border-radius: 12px; padding: 8px 12px;
+    font: 600 15px/1.35 ui-monospace, monospace; text-align: right; }
+  #fps b { font-size: 30px; color: #39d0ff; }
 </style>
 </head>
 <body>
 <video id="video" playsinline muted autoplay></video>
 <canvas id="canvas"></canvas>
 
+<div id="fps" hidden><b id="fpsNow">–</b> fps<br><span id="fpsMore">media 10 s: –</span></div>
 <div id="panel">
-  <h1>Aura <span id="ver">versione 8 · <span id="clock">0</span> s</span></h1>
+  <h1>Aura <span id="ver">versione 9 · <span id="clock">0</span> s</span></h1>
   <button id="start">Apri la fotocamera</button>
   <button id="flip" class="sec" hidden>Cambia fotocamera</button>
   <button id="hide" class="sec" hidden>Nascondi diario</button>
-  <div id="info">Test 2: i 21 punti della mano. Pollice (4) e indice (8) in rosa.</div>
+  <div id="info">Test 3: fotogrammi al secondo (in basso a destra). Tieni la mano davanti alla fotocamera 10 secondi.</div>
   <div id="log"></div>
 </div>
 
@@ -71,6 +76,33 @@ const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/h
 let stream = null, facing = null, landmarker = null, mp = null, draw = null;
 let lastVideoTime = -1, running = false;
 
+// --- contatore fps: fotogrammi analizzati al secondo + tempo del tracciamento ---
+const fpsBox = document.getElementById("fps");
+const fpsNow = document.getElementById("fpsNow");
+const fpsMore = document.getElementById("fpsMore");
+let fFrames = 0, fMs = 0, fStart = performance.now(), fHist = [], fLogged = 0;
+function countFrame(ms) {
+  fFrames++; fMs += ms;
+  const now = performance.now();
+  if (now - fStart >= 1000) {
+    const fps = fFrames * 1000 / (now - fStart);
+    const avgMs = fMs / fFrames;
+    fHist.push(fps); if (fHist.length > 10) fHist.shift();
+    const avg = fHist.reduce((a, b) => a + b, 0) / fHist.length;
+    const min = Math.min(...fHist), max = Math.max(...fHist);
+    fpsNow.textContent = Math.round(fps);
+    fpsNow.style.color = fps >= 25 ? "#39d0ff" : fps >= 20 ? "#ffd84f" : "#ff6b6b";
+    fpsMore.innerHTML = `media 10 s: ${avg.toFixed(1)} (min ${Math.round(min)} · max ${Math.round(max)})<br>tracciamento: ${avgMs.toFixed(0)} ms`;
+    // nel diario una riga ogni 10 s, da copiare nella nota
+    if (fHist.length === 10 && now - fLogged > 10000) {
+      fLogged = now;
+      log(`fps media ${avg.toFixed(1)} · min ${Math.round(min)} · max ${Math.round(max)} · ${avgMs.toFixed(0)} ms · ${video.videoWidth}×${video.videoHeight}`);
+    }
+    fFrames = 0; fMs = 0; fStart = now;
+  }
+}
+function resetFps() { fFrames = 0; fMs = 0; fStart = performance.now(); fHist = []; fLogged = performance.now(); fpsNow.textContent = "–"; }
+
 async function openCamera(constraints) {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   log("chiedo la fotocamera: " + JSON.stringify(constraints));
@@ -106,8 +138,10 @@ function loop() {
     lastVideoTime = video.currentTime;
     if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
     let res;
-    try { res = landmarker.detectForVideo(video, performance.now()); }
+    const t0 = performance.now();
+    try { res = landmarker.detectForVideo(video, t0); }
     catch (e) { info.textContent = "Errore tracciamento: " + e.message; requestAnimationFrame(loop); return; }
+    countFrame(performance.now() - t0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let txt = `Mani: ${res.landmarks.length} · ${canvas.width}×${canvas.height}`;
     res.landmarks.forEach((lm, i) => {
@@ -131,6 +165,7 @@ startBtn.addEventListener("click", async () => {
     await openCamera(true);              // richiesta semplice, come webcamtests
     startBtn.hidden = true; flipBtn.hidden = false; hideBtn.hidden = false;
     if (!landmarker) await loadMediaPipe();
+    fpsBox.hidden = false; resetFps();
     if (!running) { running = true; loop(); }
   } catch (e) {
     log("ERRORE: " + e.name + " · " + e.message);
@@ -139,7 +174,7 @@ startBtn.addEventListener("click", async () => {
 });
 
 flipBtn.addEventListener("click", async () => {
-  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); }
+  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); }
   catch (e) { log("ERRORE cambio fotocamera: " + e.name + " · " + e.message); }
 });
 
@@ -150,6 +185,23 @@ hideBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("pagehide", () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
+
+// fotocamera spenta quando la pagina va in background, riaccesa al ritorno
+let wasOn = false;
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden) {
+    if (stream) { wasOn = true; stream.getTracks().forEach(t => t.stop()); stream = null; log("in background: fotocamera spenta"); }
+  } else if (wasOn) {
+    wasOn = false;
+    try { await openCamera(true); resetFps(); log("di nuovo attiva"); }
+    catch (e) { log("ERRORE riapertura: " + e.name + " · " + e.message); startBtn.hidden = false; startBtn.disabled = false; }
+  }
+});
+
+// se il permesso è già dato, apre da sola
+navigator.permissions?.query({ name: "camera" }).then(p => {
+  if (p.state === "granted") { log("permesso già dato: apro da solo"); startBtn.click(); }
+}).catch(() => {});
 log("pronto: premi «Apri la fotocamera»");
 </script>
 </body>
