@@ -8,55 +8,130 @@
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #eee;
     font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
-  #three { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
   video, canvas { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #three { z-index: 2; pointer-events: none; }
+  #tocco { position: fixed; inset: 0; z-index: 3; touch-action: none; }
   .mirror { transform: scaleX(-1); }
-  #panel { position: fixed; left: 0; right: 0; top: 0; z-index: 3; padding: 12px;
-    padding-top: calc(12px + env(safe-area-inset-top)); background: rgba(0,0,0,.6); }
-  h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: .08em; }
-  button { font: inherit; font-size: 15px; padding: 9px 15px; border-radius: 999px; border: 0;
-    background: #39d0ff; color: #001018; font-weight: 600; margin: 4px 6px 4px 0; }
-  button.sec { background: rgba(255,255,255,.85); }
-  #info { font-size: 14px; line-height: 1.5; margin-top: 6px; }
-  #log { font: 12px/1.4 ui-monospace, monospace; color: #9fe; margin-top: 6px; max-height: 24vh; overflow: auto; white-space: pre-wrap; }
-  #ver { color: #888; font-size: 12px; }
-  #fps { position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 4;
+  button { font: inherit; cursor: pointer; }
+
+  /* pulsante menu (tre righe) */
+  #menuBtn { position: fixed; z-index: 6; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left));
+    width: 46px; height: 46px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45); color: #fff;
+    display: grid; place-items: center; padding: 0; }
+  #menuBtn svg { width: 22px; height: 22px; }
+  #menuBtn.alert::after { content: ""; position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; border-radius: 50%; background: #ff5a5a; }
+
+  #start { position: fixed; z-index: 5; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-size: 18px; font-weight: 600; padding: 16px 28px; border-radius: 999px; border: 0; background: #39d0ff; color: #001018; }
+
+  /* menu laterale */
+  #menu { position: fixed; z-index: 7; top: 0; bottom: 0; left: 0; width: min(330px, 88vw); overflow-y: auto;
+    background: rgba(12,16,20,.96); color: #eef; transform: translateX(-102%); transition: transform .22s ease;
+    padding: calc(14px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    box-sizing: border-box; }
+  #menu.open { transform: none; }
+  #velo { position: fixed; inset: 0; z-index: 6; background: rgba(0,0,0,.35); }
+  #menu h2 { margin: 2px 0 2px 52px; font-size: 18px; letter-spacing: .06em; }
+  #ver { color: #8a96a3; font-size: 12px; margin: 0 0 14px 52px; }
+  #menu h3 { margin: 18px 0 8px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8fb4c4; font-weight: 600; }
+  .riga { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .riga span { font-size: 15px; }
+  .riga small { display: block; color: #8a96a3; font-size: 12px; margin-top: 2px; }
+  .sw { width: 50px; height: 30px; border-radius: 999px; border: 0; background: #3a4450; position: relative; flex: none; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .sw[aria-pressed="true"] { background: #39d0ff; }
+  .sw[aria-pressed="true"]::after { left: 23px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: #222a33; border-radius: 10px; padding: 4px; }
+  .seg button { border: 0; border-radius: 7px; padding: 8px 2px; background: transparent; color: #cfd8e0; font-size: 13px; font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: #39d0ff; color: #001018; }
+  #stabDesc { color: #a9b6c2; font-size: 13px; line-height: 1.45; margin: 8px 0 0; }
+  .azione { display: block; width: 100%; text-align: left; border: 0; border-radius: 10px; padding: 11px 12px; margin: 6px 0;
+    background: #222a33; color: #eef; font-size: 15px; font-weight: 600; }
+  #gesti { margin: 0; padding-left: 18px; color: #c4ced8; font-size: 14px; line-height: 1.55; }
+  #gesti b { color: #fff; }
+
+  /* dati (nascosti di default) */
+  #dati[hidden] { display: none; }
+  #info { position: fixed; z-index: 4; left: 66px; right: 10px; top: calc(12px + env(safe-area-inset-top));
+    background: rgba(0,0,0,.55); border-radius: 10px; padding: 6px 10px; font-size: 13px; line-height: 1.45; pointer-events: none; }
+  #fps { position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 4; pointer-events: none;
     background: rgba(0,0,0,.7); color: #fff; border-radius: 12px; padding: 8px 12px;
     font: 600 15px/1.35 ui-monospace, monospace; text-align: right; }
   #fps b { font-size: 30px; color: #39d0ff; }
-  #pinch { position: fixed; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 4;
+  #pinch { position: fixed; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 4; pointer-events: none;
     background: rgba(0,0,0,.7); color: #fff; border-radius: 12px; padding: 8px 12px;
     font: 600 15px/1.35 ui-monospace, monospace; }
   #pinch b { font-size: 30px; color: #ff4fa3; }
-  #etichetta { position: fixed; z-index: 3; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity .25s;
+  #log { position: fixed; z-index: 4; left: 10px; right: 10px; top: calc(120px + env(safe-area-inset-top)); max-height: 30vh; overflow: auto;
+    background: rgba(0,0,0,.6); border-radius: 10px; padding: 8px 10px; font: 12px/1.4 ui-monospace, monospace; color: #9fe; white-space: pre-wrap; }
+
+  #etichetta { position: fixed; z-index: 4; left: 0; top: 0; pointer-events: none; opacity: 0; transition: opacity .25s;
     background: rgba(0,0,0,.72); color: #fff; border: 1px solid rgba(255,255,255,.5); border-radius: 10px;
     padding: 6px 10px; font: 600 15px/1.2 system-ui, sans-serif; white-space: nowrap; transform: translate(-50%, -100%); }
   #etichetta.on { opacity: 1; }
+  #avviso { position: fixed; z-index: 5; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: rgba(0,0,0,.7); color: #fff; border-radius: 999px; padding: 8px 16px; font: 600 15px system-ui, sans-serif;
+    pointer-events: none; opacity: 0; transition: opacity .2s; white-space: nowrap; }
+  #avviso.on { opacity: 1; }
 </style>
 </head>
 <body>
 <video id="video" playsinline muted autoplay></video>
 <canvas id="canvas"></canvas>
 <canvas id="three"></canvas>
+<div id="tocco"></div>
 
-<div id="fps" hidden><b id="fpsNow">–</b> fps<br><span id="fpsMore">media 10 s: –</span></div>
 <div id="etichetta">Luna · 384.400 km</div>
-<div id="pinch" hidden>pinch <b id="pinchN">0</b><br><span id="pinchState">aperto</span></div>
-<div id="panel">
-  <h1>Aura <span id="ver">versione 12 · <span id="clock">0</span> s</span></h1>
-  <button id="start">Apri la fotocamera</button>
-  <span id="tools" hidden>
-    <button id="flip" class="sec">Cambia fotocamera</button>
-    <button id="filter" class="sec">Filtro: B</button>
-    <button id="engine" class="sec">Motore: GPU</button>
-    <button id="skel" class="sec">Scheletro: sì</button>
-    <button id="suoni" class="sec">Suoni: sì</button>
-    <button id="zero" class="sec">Azzera pinch</button>
-    <button id="hide" class="sec">Nascondi diario</button>
-  </span>
-  <div id="info">Palmo aperto per mezzo secondo: compare la Terra. Pizzicala e portala dove vuoi; ruota il polso per farla girare; pinch con due mani e allarga per ingrandirla; tocca la Luna con l'indice. Quando la lasci resta lì: per riprenderla tieni il palmo aperto sotto di lei per 1 secondo.</div>
-  <div id="log"></div>
+<div id="avviso"></div>
+<button id="start">Apri la fotocamera</button>
+
+<button id="menuBtn" aria-label="Menu" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+</button>
+<div id="velo" hidden></div>
+<nav id="menu" aria-label="Impostazioni">
+  <h2>AURA</h2>
+  <div id="ver">versione 13 · <span id="clock">0</span> s</div>
+
+  <h3>Schermo</h3>
+  <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
+  <div class="riga"><span>Dati<small>fps, pinch, stato della Terra</small></span><button class="sw" id="optDati" aria-pressed="false" aria-label="Dati"></button></div>
+  <div class="riga"><span>Diario<small>messaggi tecnici ed errori</small></span><button class="sw" id="optLog" aria-pressed="false" aria-label="Diario"></button></div>
+  <div class="riga"><span>Suoni<small>su iPhone sostituiscono la vibrazione</small></span><button class="sw" id="optSuoni" aria-pressed="false" aria-label="Suoni"></button></div>
+
+  <h3>Stabilità della mano</h3>
+  <div class="seg" id="stab">
+    <button data-v="spento">Spenta</button><button data-v="A">Ferma</button><button data-v="B">Media</button><button data-v="C">Pronta</button>
+  </div>
+  <p id="stabDesc"></p>
+
+  <h3>Fotocamera e calcolo</h3>
+  <button class="azione" id="flip">Passa alla fotocamera posteriore</button>
+  <div class="riga"><span>Calcolo sulla GPU<small>più veloce; se il telefono non la regge si usa la CPU</small></span><button class="sw" id="optGpu" aria-pressed="true" aria-label="Calcolo sulla GPU"></button></div>
+
+  <h3>Comandi</h3>
+  <button class="azione" id="reset">Riporta la Terra a 1× e ferma la rotazione</button>
+  <button class="azione" id="zero">Azzera il contatore dei pinch</button>
+
+  <h3>Gesti</h3>
+  <ul id="gesti">
+    <li><b>Palmo aperto</b> mezzo secondo: compare la Terra.</li>
+    <li><b>Pinch</b> sulla Terra: la prendi e la sposti. Apri le dita: resta lì.</li>
+    <li><b>Ruota il polso</b> tenendola: gira (giorno e notte).</li>
+    <li><b>Zoom con una mano</b>: chiudi medio, anulare e mignolo, poi allarga o stringi pollice e indice.</li>
+    <li><b>Zoom con due mani</b>: pinch con entrambe e allarga.</li>
+    <li><b>Indice sulla Luna</b>: etichetta con la distanza.</li>
+    <li><b>Palmo aperto sotto la Terra</b> per 1 secondo: torna sul palmo.</li>
+    <li><b>Schermo</b>: un dito la trascina, due dita la ingrandiscono e la ruotano, doppio tocco la fa comparire o la rimette a 1×.</li>
+  </ul>
+</nav>
+
+<div id="dati" hidden>
+  <div id="info"></div>
+  <div id="fps"><b id="fpsNow">–</b> fps<br><span id="fpsMore">media 10 s: –</span></div>
+  <div id="pinch">pinch <b id="pinchN">0</b><br><span id="pinchState">aperto</span></div>
 </div>
+<div id="log" hidden></div>
 
 <!-- Script normale (non modulo): parte sempre, anche se MediaPipe non si carica -->
 <script>
@@ -71,6 +146,9 @@
   setInterval(function () {
     document.getElementById("clock").textContent = Math.round((Date.now() - T0) / 1000);
   }, 500);
+  var _log = log;
+  log = function (t) { _log(t); if (/^ERRORE/.test(t)) { var b = document.getElementById("menuBtn"); if (b) b.classList.add("alert"); } };
+  window.log = log;
   window.addEventListener("error", function (e) { log("ERRORE: " + e.message); });
   window.addEventListener("unhandledrejection", function (e) {
     log("ERRORE: " + ((e.reason && (e.reason.name + " " + e.reason.message)) || e.reason));
@@ -89,14 +167,17 @@ const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 const THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js";
 const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 
-// ================= REGOLAZIONI (azione 16: prova A, B, C) =================
-// Filtro One Euro: minCutoff basso = più fermo ma più lento; beta alto = più pronto nei movimenti veloci.
+// ================= REGOLAZIONI =================
+// Stabilità della mano (filtro One Euro). minCutoff basso = più fermo ma più lento; beta alto = più pronto nei movimenti veloci.
 const FILTRI = {
-  A: { minCutoff: 0.6, beta: 0.004, nome: "fermo" },
-  B: { minCutoff: 1.2, beta: 0.010, nome: "equilibrato" },
-  C: { minCutoff: 2.5, beta: 0.030, nome: "pronto" },
+  A: { minCutoff: 0.6, beta: 0.004, nome: "Ferma",
+       desc: "La Terra trema pochissimo, ma segue la mano con un piccolo ritardo. Adatta a guardarla da vicino tenendo la mano ferma." },
+  B: { minCutoff: 1.2, beta: 0.010, nome: "Media",
+       desc: "Compromesso tra fermezza e prontezza. È l'impostazione consigliata per la demo." },
+  C: { minCutoff: 2.5, beta: 0.030, nome: "Pronta",
+       desc: "Segue subito anche i movimenti veloci, ma con la mano ferma trema un po' di più. Adatta a spostarla e lanciarla." },
 };
-const ORDINE_FILTRI = ["spento", "A", "B", "C"];
+const DESC_SPENTO = "Nessun filtro: i punti della mano arrivano così come li vede la fotocamera, con tutto il tremolio. Serve solo per confronto.";
 // Pinch: distanza punte pollice (4) e indice (8) divisa per la misura della mano (polso 0 – base medio 9)
 const PINCH_CHIUDE = 0.22;   // sotto questa soglia il pinch si chiude
 const PINCH_APRE = 0.32;     // sopra questa soglia si riapre (isteresi: niente lampeggio)
@@ -113,11 +194,18 @@ const SCATTO_GRADI = 15;    // un "tic" (vibrazione/suono) ogni 15° di rotazion
 const ZOOM_MIN = 0.5, ZOOM_MAX = 3; // zoom a due mani: da metà a 3 volte (azione 23)
 const LUNA_TOCCO = 1.6;     // il dito tocca la Luna entro 1,6 raggi della Luna (più 12 px di margine) (azione 24)
 const LUNA_ETICHETTA_MS = 2500;
+// zoom con una mano: medio, anulare e mignolo chiusi, poi si allargano o stringono pollice e indice
+const ZOOM1_ATTESA_MS = 200;  // la forma della mano deve restare stabile per 0,2 s prima che lo zoom parta
+// tocco sullo schermo
+const DOPPIO_TOCCO_MS = 320;
 // ==========================================================================
 
 let stream = null, facing = null, landmarker = null, mp = null, files = null, draw = null;
 let lastVideoTime = -1, running = false, threeLoaded = false;
-let filtroScelto = "B", motore = "GPU", scheletro = true;
+// impostazioni ricordate da questo telefono
+const PREF = (() => { try { return JSON.parse(localStorage.getItem("aura-pref") || "{}"); } catch (e) { return {}; } })();
+function salvaPref() { try { localStorage.setItem("aura-pref", JSON.stringify(PREF)); } catch (e) {} }
+let filtroScelto = PREF.stab || "B", motore = PREF.cpu ? "CPU" : "GPU", scheletro = !!PREF.skel;
 
 // ---------------- contatore fps ----------------
 const fpsBox = $("fps"), fpsNow = $("fpsNow"), fpsMore = $("fpsMore");
@@ -135,13 +223,14 @@ function countFrame(ms) {
     fpsMore.innerHTML = `media 10 s: ${avg.toFixed(1)} (min ${Math.round(min)} · max ${Math.round(max)})<br>${motore} · tracciamento: ${avgMs.toFixed(0)} ms`;
     if (fHist.length === 10 && now - fLogged > 10000) {
       fLogged = now;
-      log(`fps media ${avg.toFixed(1)} · min ${Math.round(min)} · max ${Math.round(max)} · ${avgMs.toFixed(0)} ms · ${motore} · filtro ${filtroScelto}`);
+      log(`fps media ${avg.toFixed(1)} · min ${Math.round(min)} · max ${Math.round(max)} · ${avgMs.toFixed(0)} ms · ${motore} · stabilità ${nomeStab()}`);
     }
     fFrames = 0; fMs = 0; fStart = now;
   }
 }
 function resetFps() { fFrames = 0; fMs = 0; fStart = performance.now(); fHist = []; fLogged = performance.now(); fpsNow.textContent = "–"; }
 
+const nomeStab = () => filtroScelto === "spento" ? "spenta" : FILTRI[filtroScelto].nome.toLowerCase();
 // ---------------- filtro One Euro ----------------
 class LowPass { constructor() { this.y = null; } f(x, a) { this.y = this.y === null ? x : a * x + (1 - a) * this.y; return this.y; } }
 class OneEuro {
@@ -248,6 +337,14 @@ function feedback(tipo) {
 const angoloMano = s => Math.atan2(s[17].y - s[5].y, s[17].x - s[5].x);
 const differenza = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
+// ---------------- avviso breve in basso (es. "Zoom 1,8×") ----------------
+let avvisoTimer = 0;
+function avviso(testo, ms = 1100) {
+  const el = $("avviso"); el.textContent = testo; el.classList.add("on");
+  clearTimeout(avvisoTimer); avvisoTimer = setTimeout(() => el.classList.remove("on"), ms);
+}
+const fmtZoom = z => z.toFixed(1).replace(".", ",") + "×";
+
 // ---------------- etichetta della Luna ----------------
 const etichetta = document.getElementById("etichetta");
 let lunaFinoA = 0, lunaUltimoTocco = 0, lunaDentro = false;
@@ -277,7 +374,7 @@ async function caricaMotore(voluto) {
     landmarker = await creaLandmarker("CPU"); motore = "CPU";
   }
   if (vecchio) try { vecchio.close(); } catch (e) {}
-  $("engine").textContent = "Motore: " + motore;
+  $("optGpu").setAttribute("aria-pressed", String(motore === "GPU"));
   lastVideoTime = -1; resetFps();
   log(`modello pronto (${motore}): mostra la mano`);
 }
@@ -372,6 +469,7 @@ async function caricaScena3D() {
     renderer.render(scene, cam);
   });
   log("Terra e Luna pronte");
+  if (!scena.visibile) avviso("Apri il palmo verso il telefono", 3500);
 }
 function easeOutBack(x) { const c1 = 1.70158, c3 = c1 + 1; return x <= 0 ? 0 : 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
 
@@ -407,17 +505,45 @@ function aggiorna(res, t) {
   });
   const perLato = Object.fromEntries(viste.map(m => [m.lato, m]));
 
-  // 1. pinch di ogni mano, con isteresi
+  // 0. zoom con una mano: medio, anulare e mignolo chiusi, indice disteso, pollice e indice aperti
   for (const m of viste) {
     const h = mani[m.lato] ||= { chiuso: false };
-    h.visto = t; h.misura = m.misura;
     h.rapporto = dist(m.s[4], m.s[8]) / m.misura;
+    const piegate = [[12, 10], [16, 14], [20, 18]].every(([tip, pip]) =>
+      dist(m.s[tip], m.s[0]) < dist(m.s[pip], m.s[0]) * (h.zoom1 ? 1.15 : 1.0));   // isteresi per non perdere il gesto
+    const indice = dist(m.s[8], m.s[0]) > dist(m.s[6], m.s[0]) * 1.05;
+    const forma = piegate && indice && scena.visibile && scena.presaDi !== m.lato;
+    if (!h.zoom1) {
+      if (forma && !h.chiuso && h.rapporto > PINCH_APRE) {
+        h.formaDa ||= t;
+        if (t - h.formaDa >= ZOOM1_ATTESA_MS) {
+          h.zoom1 = { r0: h.rapporto, z0: scena.zoomUtente, passo: Math.round(scena.zoomUtente * 4) };
+          log("zoom con una mano"); avviso("Zoom " + fmtZoom(scena.zoomUtente));
+        }
+      } else h.formaDa = 0;
+    } else if (!forma) {
+      h.zoom1 = null; h.formaDa = 0; log("zoom: " + scena.zoomUtente.toFixed(2) + "×");
+    } else {
+      scena.zoomUtente = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, h.zoom1.z0 * h.rapporto / Math.max(h.zoom1.r0, 0.05)));
+      const passo = Math.round(scena.zoomUtente * 4);
+      if (passo !== h.zoom1.passo) { h.zoom1.passo = passo; feedback("zoom"); avviso("Zoom " + fmtZoom(scena.zoomUtente)); }
+    }
+  }
+
+  // 1. pinch di ogni mano, con isteresi (non durante lo zoom con una mano)
+  for (const m of viste) {
+    const h = mani[m.lato];
+    h.visto = t; h.misura = m.misura;
     h.punto = media([m.s[4], m.s[8]]);
     h.apre = h.chiude = false;
+    if (h.zoom1) { h.chiuso = false; continue; }
     if (!h.chiuso && h.rapporto < PINCH_CHIUDE) { h.chiuso = h.chiude = true; pinch.conta++; }
     else if (h.chiuso && h.rapporto > PINCH_APRE) { h.chiuso = false; h.apre = true; }
   }
-  for (const lato in mani) if (!perLato[lato]) { mani[lato].chiuso = false; mani[lato].punto = null; }
+  for (const lato in mani) if (!perLato[lato]) {
+    const h = mani[lato]; h.chiuso = false; h.punto = null; h.formaDa = 0;
+    if (h.zoom1) { h.zoom1 = null; log("zoom: " + scena.zoomUtente.toFixed(2) + "×"); }
+  }
   const chiuse = viste.filter(m => mani[m.lato].chiuso);
 
   // 2. comparsa: palmo aperto per mezzo secondo
@@ -427,7 +553,7 @@ function aggiorna(res, t) {
       scena.apertoDa ||= t;
       if (t - scena.apertoDa >= PALMO_APERTO_MS) {
         Object.assign(scena, { visibile: true, modo: "palmo", manoPalmo: aperta.lato, zoomUtente: 1, spin: 0, pos: null });
-        feedback("comparsa"); log("palmo aperto: compare la Terra");
+        feedback("comparsa"); log("palmo aperto: compare la Terra"); $("avviso").classList.remove("on");
       }
     } else scena.apertoDa = 0;
   }
@@ -439,7 +565,7 @@ function aggiorna(res, t) {
     if (!scena.zoomGesto) { scena.zoomGesto = { d0: Math.max(d, 1), z0: scena.zoomUtente, passo: Math.round(scena.zoomUtente * 4) }; log("zoom a due mani"); }
     scena.zoomUtente = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scena.zoomGesto.z0 * d / scena.zoomGesto.d0));
     const passo = Math.round(scena.zoomUtente * 4);           // un tic ogni 0,25×
-    if (passo !== scena.zoomGesto.passo) { scena.zoomGesto.passo = passo; feedback("zoom"); }
+    if (passo !== scena.zoomGesto.passo) { scena.zoomGesto.passo = passo; feedback("zoom"); avviso("Zoom " + fmtZoom(scena.zoomUtente)); }
     scena.target = media([p1, p2]);                            // durante lo zoom la Terra sta tra le due mani
   } else if (scena.zoomGesto) { scena.zoomGesto = null; log("zoom: " + scena.zoomUtente.toFixed(2) + "×"); }
 
@@ -466,7 +592,8 @@ function aggiorna(res, t) {
   }
 
   // 5. posizione della Terra secondo il modo
-  if (scena.modo === "palmo") {
+  if (tocco.attivo) { /* la sta muovendo il dito sullo schermo */ }
+  else if (scena.modo === "palmo") {
     const m = perLato[scena.manoPalmo] || viste[0];
     if (m) {
       scena.manoPalmo = m.lato; scena.ultimoPalmo = t;
@@ -511,13 +638,17 @@ function aggiorna(res, t) {
 
   // 7. pannello
   const nomi = { palmo: "sul palmo", presa: "presa", libera: "lasciata" };
-  let testo = `Mani: ${viste.length} · filtro ${filtroScelto}${filtroScelto !== "spento" ? " (" + FILTRI[filtroScelto].nome + ")" : ""}`;
-  for (const m of viste) testo += `<br>${m.lato}: palmo ${m.aperto ? "aperto" : "chiuso"} · pinch ${mani[m.lato].rapporto.toFixed(2)} (chiude &lt; ${PINCH_CHIUDE}, apre &gt; ${PINCH_APRE})`;
+  if ($("dati").hidden) return aggiornaContatore(chiuse);
+  let testo = `Mani: ${viste.length} · stabilità ${nomeStab()}`;
+  for (const m of viste) testo += `<br>${m.lato}: palmo ${m.aperto ? "aperto" : "chiuso"} · pinch ${mani[m.lato].rapporto.toFixed(2)}${mani[m.lato].zoom1 ? " · zoom con una mano" : ""}`;
   if (scena.visibile) {
     testo += `<br>Terra: ${nomi[scena.modo]} · ${scena.zoomUtente.toFixed(2)}× · rotazione ${Math.round(scena.spin * 180 / Math.PI)}°`;
     if (scena.ritornoDa) testo += " · torna sul palmo…";
   } else if (!viste.length) testo += "<br>Mostra il palmo aperto per mezzo secondo";
   info.innerHTML = testo;
+  aggiornaContatore(chiuse);
+}
+function aggiornaContatore(chiuse) {
   const qualcunaChiusa = chiuse.length > 0;
   $("pinchN").textContent = pinch.conta;
   $("pinchState").textContent = qualcunaChiusa ? "chiuso" : "aperto";
@@ -547,9 +678,9 @@ startBtn.addEventListener("click", async () => {
   startBtn.disabled = true;
   try {
     await openCamera(true);
-    startBtn.hidden = true; $("tools").hidden = false;
-    if (!landmarker) await caricaMotore("GPU");
-    fpsBox.hidden = false; $("pinch").hidden = false; resetFps();
+    startBtn.hidden = true; testoFlip();
+    if (!landmarker) await caricaMotore(motore);
+    resetFps();
     if (!running) { running = true; loop(); }
     if (!threeLoaded) {
       threeLoaded = true;
@@ -561,38 +692,118 @@ startBtn.addEventListener("click", async () => {
   }
 });
 
+// ---------------- menu ----------------
+const menu = $("menu"), velo = $("velo"), menuBtn = $("menuBtn");
+function apriMenu(si) {
+  menu.classList.toggle("open", si); velo.hidden = !si;
+  menuBtn.setAttribute("aria-expanded", String(si));
+  if (si) menuBtn.classList.remove("alert");
+}
+menuBtn.addEventListener("click", () => apriMenu(!menu.classList.contains("open")));
+velo.addEventListener("click", () => apriMenu(false));
+
+function interruttore(id, valore, quando) {
+  const b = $(id); b.setAttribute("aria-pressed", String(valore));
+  b.addEventListener("click", () => { const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(v)); quando(v); });
+}
+interruttore("optSkel", scheletro, v => { scheletro = v; PREF.skel = v; salvaPref(); if (!v) ctx.clearRect(0, 0, canvas.width, canvas.height); });
+$("dati").hidden = !PREF.dati;
+interruttore("optDati", !!PREF.dati, v => { $("dati").hidden = !v; PREF.dati = v; salvaPref(); });
+$("log").hidden = !PREF.log;
+interruttore("optLog", !!PREF.log, v => { $("log").hidden = !v; PREF.log = v; salvaPref(); if (v) $("log").scrollTop = 1e9; });
+if (typeof PREF.suoni === "boolean") suoni = PREF.suoni;
+interruttore("optSuoni", suoni, v => { suoni = v; PREF.suoni = v; salvaPref(); sbloccaAudio(); if (v) setTimeout(() => feedback("luna"), 50); });
+interruttore("optGpu", motore === "GPU", async v => {
+  PREF.cpu = !v; salvaPref();
+  if (landmarker) await caricaMotore(v ? "GPU" : "CPU");
+});
+
+function mostraStab() {
+  for (const b of $("stab").children) b.setAttribute("aria-pressed", String(b.dataset.v === filtroScelto));
+  $("stabDesc").textContent = filtroScelto === "spento" ? DESC_SPENTO : FILTRI[filtroScelto].desc;
+}
+$("stab").addEventListener("click", e => {
+  const v = e.target.dataset && e.target.dataset.v; if (!v) return;
+  filtroScelto = v; PREF.stab = v; salvaPref(); azzeraFiltri(); mostraStab();
+  log("stabilità: " + nomeStab() + (FILTRI[v] ? ` (minCutoff ${FILTRI[v].minCutoff}, beta ${FILTRI[v].beta})` : ""));
+});
+mostraStab();
+
+function testoFlip() { $("flip").textContent = facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"; }
 $("flip").addEventListener("click", async () => {
-  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); }
+  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); testoFlip(); }
   catch (e) { log("ERRORE cambio fotocamera: " + e.name + " · " + e.message); }
 });
-$("filter").addEventListener("click", e => {
-  filtroScelto = ORDINE_FILTRI[(ORDINE_FILTRI.indexOf(filtroScelto) + 1) % ORDINE_FILTRI.length];
-  azzeraFiltri();
-  e.target.textContent = "Filtro: " + filtroScelto;
-  log("filtro: " + filtroScelto + (FILTRI[filtroScelto] ? ` (minCutoff ${FILTRI[filtroScelto].minCutoff}, beta ${FILTRI[filtroScelto].beta})` : ""));
+$("reset").addEventListener("click", () => { scena.zoomUtente = 1; scena.spin = 0; avviso("Terra a 1×"); apriMenu(false); });
+$("zero").addEventListener("click", () => { pinch.conta = 0; $("pinchN").textContent = "0"; log("contatore pinch azzerato"); avviso("Pinch: 0"); });
+
+// ---------------- tocco sullo schermo: un dito sposta, due dita ingrandiscono e ruotano, doppio tocco ----------------
+const tocco = { punti: new Map(), attivo: null, ultimoTap: null };
+const zona = $("tocco");
+function puntiTocco() { return [...tocco.punti.values()]; }
+function iniziaGesto() {
+  const p = puntiTocco();
+  if (p.length >= 2 && scena.visibile) {
+    tocco.attivo = { tipo: "due", d0: Math.max(dist(p[0], p[1]), 1), a0: Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x),
+                     z0: scena.zoomUtente, spin0: scena.spin, passo: Math.round(scena.zoomUtente * 4) };
+    lasciaSulloSchermo();
+  } else if (p.length === 1 && scena.visibile && scena.pos && dist(p[0], scena.pos) < scena.r * scena.zoomUtente * 1.5) {
+    tocco.attivo = { tipo: "uno", off: { x: scena.pos.x - p[0].x, y: scena.pos.y - p[0].y } };
+    lasciaSulloSchermo(); feedback("presa");
+  } else tocco.attivo = null;
+}
+function lasciaSulloSchermo() {
+  // toccata sullo schermo la Terra non segue più la mano: resta "lasciata" dove la metti
+  if (scena.modo === "presa") { scena.presaDi = null; scena.giro = null; }
+  scena.modo = "libera"; scena.armato = false; scena.ritornoDa = 0;
+  scena.raggio = scena.r;
+}
+zona.addEventListener("pointerdown", e => {
+  try { zona.setPointerCapture(e.pointerId); } catch (err) {}
+  tocco.punti.set(e.pointerId, { x: e.clientX, y: e.clientY, t0: performance.now(), x0: e.clientX, y0: e.clientY });
+  iniziaGesto();
 });
-$("engine").addEventListener("click", async e => {
-  e.target.disabled = true;
-  try { await caricaMotore(motore === "GPU" ? "CPU" : "GPU"); }
-  finally { e.target.disabled = false; }
+zona.addEventListener("pointermove", e => {
+  const q = tocco.punti.get(e.pointerId); if (!q) return;
+  q.x = e.clientX; q.y = e.clientY;
+  const g = tocco.attivo, p = puntiTocco();
+  if (!g) return;
+  if (g.tipo === "uno" && p.length === 1) {
+    scena.target = { x: p[0].x + g.off.x, y: p[0].y + g.off.y };
+  } else if (g.tipo === "due" && p.length >= 2) {
+    scena.zoomUtente = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, g.z0 * dist(p[0], p[1]) / g.d0));
+    scena.spin = g.spin0 + VERSO_ROTAZIONE * differenza(Math.atan2(p[1].y - p[0].y, p[1].x - p[0].x), g.a0);
+    scena.target = media([p[0], p[1]]);
+    const passo = Math.round(scena.zoomUtente * 4);
+    if (passo !== g.passo) { g.passo = passo; feedback("zoom"); avviso("Zoom " + fmtZoom(scena.zoomUtente)); }
+  }
 });
-$("skel").addEventListener("click", e => {
-  scheletro = !scheletro;
-  e.target.textContent = "Scheletro: " + (scheletro ? "sì" : "no");
-  if (!scheletro) ctx.clearRect(0, 0, canvas.width, canvas.height);
-});
-$("suoni").textContent = "Suoni: " + (suoni ? "sì" : "no");
-$("suoni").addEventListener("click", e => {
-  suoni = !suoni; sbloccaAudio();
-  e.target.textContent = "Suoni: " + (suoni ? "sì" : "no");
-  if (suoni) setTimeout(() => feedback("luna"), 50);
-});
-$("zero").addEventListener("click", () => { pinch.conta = 0; $("pinchN").textContent = "0"; log("contatore pinch azzerato"); });
-$("hide").addEventListener("click", e => {
-  const l = $("log"), i = $("info");
-  l.hidden = !l.hidden; i.hidden = l.hidden;
-  e.target.textContent = l.hidden ? "Mostra diario" : "Nascondi diario";
-});
+function fineTocco(e) {
+  const q = tocco.punti.get(e.pointerId); if (!q) return;
+  tocco.punti.delete(e.pointerId);
+  const ora = performance.now();
+  const breve = ora - q.t0 < 250 && Math.hypot(q.x - q.x0, q.y - q.y0) < 15;
+  if (breve && tocco.punti.size === 0) {
+    const u = tocco.ultimoTap;
+    if (u && ora - u.t < DOPPIO_TOCCO_MS && Math.hypot(q.x - u.x, q.y - u.y) < 60) { doppioTocco(q); tocco.ultimoTap = null; }
+    else tocco.ultimoTap = { t: ora, x: q.x, y: q.y };
+  }
+  if (tocco.attivo && tocco.attivo.tipo === "due") log("zoom dallo schermo: " + scena.zoomUtente.toFixed(2) + "×");
+  iniziaGesto();   // se resta un dito, continua a trascinare
+}
+zona.addEventListener("pointerup", fineTocco);
+zona.addEventListener("pointercancel", fineTocco);
+function doppioTocco(q) {
+  if (!scena.visibile) {
+    // fa comparire la Terra dove hai toccato, anche senza mano
+    const r = Math.min(innerWidth, innerHeight) * 0.16;
+    Object.assign(scena, { visibile: true, modo: "libera", armato: true, pos: { x: q.x, y: q.y }, target: { x: q.x, y: q.y },
+                           r, raggio: r, zoomUtente: 1, spin: 0, presaDi: null });
+    feedback("comparsa"); log("doppio tocco: compare la Terra");
+  } else {
+    scena.zoomUtente = 1; scena.spin = 0; avviso("Terra a 1×"); feedback("ritorno"); log("doppio tocco: Terra a 1×");
+  }
+}
 
 window.addEventListener("pagehide", () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
 
