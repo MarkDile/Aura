@@ -135,6 +135,26 @@
   #scheda .bottoni button { border: 0; border-radius: 10px; padding: 11px 8px; background: #222a33; color: #eef; font-size: 14px; font-weight: 600; }
   #scheda .bottoni button.primario { background: #39d0ff; color: #001018; grid-column: 1 / -1; }
   #scheda .bottoni button:disabled { opacity: .45; }
+  #scheda .info { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #182029; color: #cfd8e0; font-size: 13px; line-height: 1.45; }
+  #scheda .info[hidden] { display: none; }
+  #scheda .info b { color: #eef; }
+  #scheda h5 { margin: 14px 0 2px; font-size: 13px; color: #8fa0b0; text-transform: uppercase; letter-spacing: .05em; }
+  /* Oggetti 3D: misura con un riferimento e modello dalle misure */
+  .pannello { position: fixed; z-index: 8; inset: 0; background: #06090c; color: #eef; display: flex; flex-direction: column;
+    padding: calc(12px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom)); box-sizing: border-box; gap: 10px;
+    font: 14px/1.4 system-ui, sans-serif; overflow-y: auto; }
+  .pannello[hidden] { display: none; }
+  .pannello h4 { margin: 0; font-size: 18px; }
+  .pannello .testo { color: #a9b6c2; font-size: 13px; }
+  .pannello .testo b { color: #7be0a0; }
+  .pannello canvas { position: static; inset: auto; width: 100%; height: auto; max-height: 56vh; flex: none; object-fit: contain; border-radius: 10px; background: #000; touch-action: none; }
+  .pannello .bottoni { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .pannello .bottoni button { border: 0; border-radius: 10px; padding: 12px 8px; background: #222a33; color: #eef; font-size: 14px; font-weight: 600; }
+  .pannello .bottoni button.primario { background: #39d0ff; color: #001018; }
+  .pannello .bottoni button:disabled { opacity: .45; }
+  .pannello label { display: grid; grid-template-columns: 1fr 110px; align-items: center; gap: 8px; font-size: 14px; }
+  .pannello label[hidden] { display: none; }
+  .pannello input { background: #182029; color: #fff; border: 1px solid #33404c; border-radius: 8px; padding: 9px 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
 </style>
 </head>
 <body>
@@ -162,7 +182,40 @@
     <button id="schedaZip" hidden>Scarica le viste (.zip)</button>
     <button id="schedaRifai">Rifai la cattura</button>
   </div>
+  <div class="info" id="schedaInfo" hidden></div>
+  <h5>Riconoscimento e misure</h5>
+  <div class="bottoni">
+    <button id="schedaDescrivi">Descrivi e leggi le scritte</button>
+    <button id="schedaMisura">Misura con carta o A4</button>
+  </div>
+  <h5>Modello 3D realistico</h5>
+  <div class="bottoni">
+    <button id="schedaCrea">Crea dalle misure</button>
+    <button id="schedaAiGlb">Collega un 3D fatto da un'AI…</button>
+    <button id="schedaPerAi">Immagine per l'AI 3D (.png)</button>
+    <button id="schedaVedi" hidden>Mostra: rilievo</button>
+  </div>
+  <input type="file" id="fileAiGlb" accept=".glb,model/gltf-binary" hidden>
 </div>
+<div class="pannello" id="misura" hidden>
+  <h4>Misura con un riferimento</h4>
+  <div class="testo" id="misuraTesto">Cerco una carta formato tessera o un foglio A4 nella foto…</div>
+  <canvas id="misuraCanvas"></canvas>
+  <div class="seg due" id="misuraTipo"><button data-v="carta">Carta 85,6 × 54 mm</button><button data-v="a4">Foglio A4 297 × 210</button></div>
+  <div class="bottoni"><button id="misuraAnnulla">Chiudi</button><button class="primario" id="misuraOk" disabled>Usa queste misure</button></div>
+</div>
+<div class="pannello" id="crea" hidden>
+  <h4>Modello dalle misure</h4>
+  <div class="testo">Un modello 3D pulito, con le misure vere in millimetri: i colori e la foto vengono dal ritaglio. Le misure di partenza sono quelle stimate: correggile col metro o con la scheda tecnica.</div>
+  <div class="seg tre" id="creaForma"><button data-v="scatola">Scatola</button><button data-v="cilindro">Cilindro</button><button data-v="telaio">Telaio / infisso</button></div>
+  <label id="creaLL"><span id="creaLT">Larghezza (mm)</span><input type="number" inputmode="decimal" min="1" id="creaL"></label>
+  <label><span>Altezza (mm)</span><input type="number" inputmode="decimal" min="1" id="creaA"></label>
+  <label id="creaPL"><span>Profondità (mm)</span><input type="number" inputmode="decimal" min="1" id="creaP"></label>
+  <label id="creaSL" hidden><span>Larghezza del profilo (mm)</span><input type="number" inputmode="decimal" min="1" id="creaS"></label>
+  <div class="testo" id="creaNota"></div>
+  <div class="bottoni"><button id="creaAnnulla">Chiudi</button><button class="primario" id="creaVai">Crea e mostra</button><button id="creaGlb" disabled>Scarica il .glb</button><button id="creaClaude">Copia la richiesta per Claude</button></div>
+</div>
+
 <button id="start">Apri la fotocamera</button>
 
 <button id="menuBtn" aria-label="Menu" aria-expanded="false">
@@ -174,7 +227,7 @@
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 20 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 21 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -198,7 +251,7 @@
   <button class="azione evidenza" id="catturaOggetto">Cattura veloce (2 secondi)…</button>
   <button class="azione evidenza" id="catturaGiro">Cattura a giro, da più lati…</button>
   <div class="riga"><span>Rilievo nel giro<small>spento = foto vere, più realistiche; acceso = un leggero rilievo AI</small></span><button class="sw" id="optGiroRilievo" aria-pressed="false" aria-label="Rilievo nel giro"></button></div>
-  <p class="nota">Cerchia l'oggetto con un dito sullo schermo (o toccalo), oppure puntalo con l'indice e tieni fermo 1 secondo.<br><b>Veloce</b>: 2 secondi, una vista in rilievo.<br><b>A giro</b>: prendi l'oggetto in mano e giralo piano (oppure giraci intorno col telefono): ogni volta che si vede un lato nuovo la pagina memorizza una vista, fino a 36. La tua mano viene tolta dal ritaglio. Poi l'oggetto gira a 360° sul palmo: le viste si dissolvono una nell'altra, tutte alla stessa misura. Per tornare al punto di partenza gira l'oggetto di un giro intero. Puoi scaricare le viste per un modello 3D completo.</p>
+  <p class="nota">Cerchia l'oggetto con un dito sullo schermo (o toccalo), oppure puntalo con l'indice e tieni fermo 1 secondo.<br><b>Veloce</b>: 2 secondi, una vista in rilievo.<br><b>A giro</b>: prendi l'oggetto in mano e giralo piano (oppure giraci intorno col telefono): ogni volta che si vede un lato nuovo la pagina memorizza una vista, fino a 36. La tua mano viene tolta dal ritaglio. Poi l'oggetto gira a 360° sul palmo: le viste si dissolvono una nell'altra, tutte alla stessa misura. Per tornare al punto di partenza gira l'oggetto di un giro intero. Puoi scaricare le viste per un modello 3D completo.<br><b>Nella scheda</b>: «Descrivi e leggi le scritte» (AI nel telefono), «Misura con carta o A4» (metti una carta formato tessera o un foglio A4 vicino all'oggetto durante la cattura), «Crea dalle misure» (scatola, cilindro o telaio con le misure vere) e «Collega un 3D fatto da un'AI».</p>
   <div class="album" id="oggetti"><div class="vuoto">Ancora nessun oggetto.</div></div>
 
   <h3>Sfondo</h3>
@@ -331,7 +384,9 @@ const VERSO_INCLINAZIONE = 1;  // 1 o -1: verso in cui la foto si inclina quando
 const ALBUM_MAX = 10;
 const SWIPE_MANO = 0.28;       // swipe con la mano: spostamento di almeno il 28% della larghezza in 0,3 s
 const AI_MODELLO = "onnx-community/depth-anything-v2-small";
-const AI_VERSIONI = ["3.0.2", "3.0.0"];   // @huggingface/transformers (transformers.js)
+const AI_VERSIONI = ["3.0.2", "3.0.0"];
+const AI_DESCRIZIONE = "onnx-community/Florence-2-base-ft";   // descrizione e scritte (azione 27.94)
+const AI_TRADUTTORE = "Xenova/opus-mt-en-it";              // traduzione della descrizione in italiano   // @huggingface/transformers (transformers.js)
 // Oggetti 3D (cattura dalla fotocamera)
 const SEG_MODELLO = "https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite";
 const DET_MODELLO = "https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite";
@@ -826,6 +881,45 @@ async function caricaScena3D() {
     let triangoli = 0; m.traverse(o => { if (o.isMesh) triangoli += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
     log(`modello ${file.name}: ${(file.size / 1048576).toFixed(1)} MB · ${Math.round(triangoli).toLocaleString("it-IT")} triangoli`);
   };
+  // ---------- modello dalle misure (azione 27.95): forme semplici con le misure vere, in millimetri, y in su ----------
+  let modelloMisure = null;
+  window.creaModello = (spec, aspetto) => {
+    perModello.clear();
+    // materiali a una faccia come nei .glb: con lo schermo a y in giù è così che si vede il davanti
+    const g = new THREE.Group();
+    const tex = c => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
+    const pieno = new THREE.MeshStandardMaterial({ color: new THREE.Color(aspetto.colore), roughness: 0.55, metalness: spec.forma === "telaio" ? 0.25 : 0.05 });
+    const { L, A, P, S } = spec;
+    if (spec.forma === "cilindro") {
+      // la foto va sul davanti (u = 0 è il davanti): la disegno a cavallo della cucitura
+      const c = document.createElement("canvas"), fh = aspetto.tex.height, fw = aspetto.tex.width;
+      c.height = Math.min(1024, fh); const k = c.height / fh; c.width = Math.min(4096, Math.round(fw * k * Math.PI));
+      const cg = c.getContext("2d"); cg.fillStyle = aspetto.colore; cg.fillRect(0, 0, c.width, c.height);
+      cg.drawImage(aspetto.tex, -fw * k / 2, 0, fw * k, c.height); cg.drawImage(aspetto.tex, c.width - fw * k / 2, 0, fw * k, c.height);
+      const lato = new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.5, metalness: 0.05 });
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(L / 2, L / 2, A, 72, 1, false), [lato, pieno, pieno]));
+    } else if (spec.forma === "telaio") {
+      const barra = (w, h, x, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, P), pieno); m.position.set(x, y, 0); g.add(m); };
+      barra(L, S, 0, A / 2 - S / 2); barra(L, S, 0, -A / 2 + S / 2);
+      barra(S, A - 2 * S, -L / 2 + S / 2, 0); barra(S, A - 2 * S, L / 2 - S / 2, 0);
+      const vetro = new THREE.Mesh(new THREE.BoxGeometry(L - 2 * S + 2, A - 2 * S + 2, Math.min(24, P * 0.4)),
+        new THREE.MeshStandardMaterial({ color: 0xcfeaff, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.32, depthWrite: false }));
+      vetro.name = "vetro"; g.add(vetro);
+    } else {
+      const fronte = new THREE.MeshStandardMaterial({ map: tex(aspetto.tex), roughness: 0.55, metalness: 0.05 });
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(L, A, P), [pieno, pieno, pieno, pieno, fronte, pieno]));   // +z è il davanti
+    }
+    modelloMisure = g;
+    perModello.add(g);
+    perModello.scale.setScalar(2 / Math.max(L, A, spec.forma === "cilindro" ? L : P));
+  };
+  // .glb in metri (1 unità = 1 m), y in su, davanti verso +z: come vogliono i visualizzatori
+  window.esportaModello = async () => {
+    if (!modelloMisure) throw new Error("nessun modello dalle misure");
+    const { GLTFExporter } = await import("three/addons/exporters/GLTFExporter.js");
+    const radice = new THREE.Group(), copia = modelloMisure.clone(); copia.scale.setScalar(0.001); radice.add(copia);
+    return await new GLTFExporter().parseAsync(radice, { binary: true });
+  };
   window.scegliSoggetto(["modello", "foto", "oggetto"].includes(PREF.sogg) ? "terra" : PREF.sogg);
 
   const alone = new THREE.Mesh(new THREE.RingGeometry(0.75, 1, 48),
@@ -1216,6 +1310,7 @@ async function bitmapDa(blob) {
 // ---- l'AI della profondità: gira in un worker (lo schermo resta fluido); se il worker non parte, gira nella pagina ----
 const CODICE_AI = `
 const MODELLO = ${JSON.stringify(AI_MODELLO)}, VERSIONI = ${JSON.stringify(AI_VERSIONI)};
+const DESCRIZIONE = ${JSON.stringify(AI_DESCRIZIONE)}, TRADUTTORE = ${JSON.stringify(AI_TRADUTTORE)};
 let T = null, pipe = null, dispositivo = "";
 async function libreria() {
   let ultimo;
@@ -1224,7 +1319,51 @@ async function libreria() {
   }
   throw ultimo;
 }
+// ---- descrizione e scritte (azione 27.94): Florence-2, sempre dentro il telefono ----
+let flo = null, floDisp = "", trad = null;
+async function descrivi(dati, manda) {
+  T ||= await libreria();
+  T.env.allowLocalModels = false;
+  const avanzamento = p => { if (p && p.status === "progress" && p.total > 1e6) manda({ tipo: "progresso", file: p.file, pct: p.progress || 0 }); };
+  if (!flo) {
+    const gpu = dati.preferisci !== "wasm" && self.navigator && self.navigator.gpu;
+    const prove = (gpu ? [["webgpu", { embed_tokens: "fp16", vision_encoder: "fp16", encoder_model: "q4", decoder_model_merged: "q4" }]] : []).concat([["wasm", "q8"]]);
+    let errore;
+    for (const [device, dtype] of prove) {
+      try {
+        const model = await T.Florence2ForConditionalGeneration.from_pretrained(DESCRIZIONE, { device, dtype, progress_callback: avanzamento });
+        const proc = await T.AutoProcessor.from_pretrained(DESCRIZIONE);
+        flo = { model, proc }; floDisp = device; break;
+      } catch (e) { errore = e; manda({ tipo: "log", testo: "descrizione su " + device + " non disponibile: " + (e && e.message || e) }); }
+    }
+    if (!flo) throw errore || new Error("modello della descrizione non caricato");
+  }
+  const img = await T.RawImage.fromBlob(dati.blob), t0 = performance.now(), out = {};
+  const pulisci = s => String(s || "").split("</s>").join("").split("<s>").join("").split("<pad>").join("").trim();
+  try {
+    for (const [compito, max] of [["<MORE_DETAILED_CAPTION>", 90], ["<OCR>", 60]]) {
+      const inputs = await flo.proc(img, flo.proc.construct_prompts(compito));
+      const ids = await flo.model.generate({ ...inputs, max_new_tokens: max });
+      const testo = flo.proc.batch_decode(ids, { skip_special_tokens: false })[0];
+      const r = flo.proc.post_process_generation(testo, compito, img.size);
+      out[compito] = pulisci(r && r[compito] != null ? r[compito] : testo);
+    }
+  } catch (e) {
+    if (floDisp !== "webgpu") throw e;
+    manda({ tipo: "log", testo: "errore della descrizione su GPU (" + (e && e.message || e) + "): riprovo sulla CPU" });
+    flo = null;
+    return descrivi(Object.assign({}, dati, { preferisci: "wasm" }), manda);
+  }
+  let it = null;
+  try {
+    trad ||= await T.pipeline("translation", TRADUTTORE, { device: "wasm", dtype: "q8", progress_callback: avanzamento });
+    const t = await trad(out["<MORE_DETAILED_CAPTION>"], { max_new_tokens: 160 });
+    it = t && t[0] && t[0].translation_text || null;
+  } catch (e) { manda({ tipo: "log", testo: "traduzione non disponibile: " + (e && e.message || e) }); }
+  return { descrizione: out["<MORE_DETAILED_CAPTION>"], scritte: out["<OCR>"], it, ms: performance.now() - t0, dispositivo: floDisp };
+}
 export async function lavora(dati, manda) {
+  if (dati.compito === "descrivi") return descrivi(dati, manda);
   T ||= await libreria();
   T.env.allowLocalModels = false;
   if (!pipe) {
@@ -1264,7 +1403,7 @@ export async function lavora(dati, manda) {
 if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope) {
   self.onmessage = async e => {
     const manda = m => self.postMessage(Object.assign({ id: e.data.id }, m));
-    try { const r = await lavora(e.data, manda); self.postMessage({ id: e.data.id, tipo: "fatto", ...r }, [r.data.buffer]); }
+    try { const r = await lavora(e.data, manda); self.postMessage({ id: e.data.id, tipo: "fatto", ...r }, r.data ? [r.data.buffer] : []); }
     catch (err) { manda({ tipo: "errore", testo: String(err && err.message || err) }); }
   };
 }
@@ -1279,9 +1418,9 @@ function messaggioAI(m) {
   aiAttese.delete(m.id);
   if (m.tipo === "fatto") a.ok(m); else a.ko(new Error(m.testo));
 }
-async function calcolaProfondita(blob) {
+async function chiamaAI(dati) {
   const id = ++aiId;
-  const lavoro = new Promise((ok, ko) => aiAttese.set(id, { ok, ko }));
+  const lavoro = new Promise((ok, ko) => aiAttese.set(id, { ok, ko, dati }));
   if (!aiNellaPagina) {
     try {
       if (!workerAI) {
@@ -1291,10 +1430,10 @@ async function calcolaProfondita(blob) {
           log("AI: il worker non parte (" + (e.message || "errore") + "), calcolo nella pagina");
           e.preventDefault && e.preventDefault();
           workerAI.terminate(); workerAI = null; aiNellaPagina = "si";
-          for (const [k, a] of aiAttese) { aiAttese.delete(k); calcolaProfondita(blob).then(a.ok, a.ko); }
+          for (const [k, a] of aiAttese) { aiAttese.delete(k); chiamaAI(a.dati).then(a.ok, a.ko); }
         };
       }
-      workerAI.postMessage({ id, blob, preferisci: PREF.cpu ? "wasm" : "gpu" });
+      workerAI.postMessage({ id, ...dati, preferisci: PREF.cpu ? "wasm" : "gpu" });
       return await lavoro;
     } catch (e) {
       if (workerAI || aiNellaPagina) throw e;      // errore dell'AI: lo segnalo
@@ -1303,10 +1442,11 @@ async function calcolaProfondita(blob) {
     }
   }
   const mod = await import(urlAI);
-  try { const r = await mod.lavora({ blob, preferisci: PREF.cpu ? "wasm" : "gpu" }, m => messaggioAI({ id, ...m })); messaggioAI({ id, tipo: "fatto", ...r }); }
+  try { const r = await mod.lavora({ ...dati, preferisci: PREF.cpu ? "wasm" : "gpu" }, m => messaggioAI({ id, ...m })); messaggioAI({ id, tipo: "fatto", ...r }); }
   catch (err) { messaggioAI({ id, tipo: "errore", testo: String(err && err.message || err) }); }
   return await lavoro;
 }
+const calcolaProfondita = blob => chiamaAI({ blob });
 
 // ---- album (IndexedDB: resta nel telefono) ----
 const archivio = {
@@ -1815,8 +1955,9 @@ async function elabora(R) {
   const ritBlob = await new Promise(ok => rit.toBlob(ok, "image/png"));
   const crop = await ritaglioConSfondo(scelto.canvas, box);
   const thumb = (await ridimensiona(rit, 160, "image/png")).canvas.toDataURL("image/png");
+  const fr = await datiFotogramma(scelto.canvas, maschera);              // per misurare dopo con una carta o un A4
   const rec = { id: Date.now(), nome, punteggio, img: ritBlob, crop, thumb, prof: null, alfa: null, cm, stabilita,
-                come: R.come, fotogrammi: R.fotogrammi.length, creato: new Date().toISOString() };
+                come: R.come, fotogrammi: R.fotogrammi.length, creato: new Date().toISOString(), ...fr };
   log(`cattura: ${R.fotogrammi.length} fotogrammi, ${conMaschera.length} con maschera, stabilità ${stabilita == null ? "–" : Math.round(stabilita * 100) + "%"}, ritaglio ${box.w}×${box.h}, ${nome}${punteggio ? " " + Math.round(punteggio * 100) + "%" : ""}${cm ? `, circa ${cm.w}×${cm.h} cm` : ""} · ${Math.round(performance.now() - t0)} ms`);
   fineCattura();
   oggettoCorrente = rec.id;
@@ -1826,6 +1967,7 @@ async function elabora(R) {
   await salvaOggetto(rec);
   try { await profonditaOggetto(rec, rit); mostraScheda(rec, "Pronto: è sul palmo. Inclina la mano per vederlo di lato.", true); }
   catch (e) { log("ERRORE AI oggetto: " + (e.message || e)); mostraScheda(rec, "Forma 3D non calcolata: l'oggetto resta piatto."); }
+  if (PREF.descrizioneScaricata) descriviOggetto(rec);           // l'AI della descrizione è già nel telefono: la uso subito
 }
 // ---------- cattura a giro: più viste mentre giri l'oggetto in mano (o giri intorno col telefono) ----------
 // "impronta" di una vista: forma (16×16 dentro il riquadro) e colori (4×4×4): serve a capire se il lato è nuovo
@@ -1862,7 +2004,7 @@ async function raccoltaGiro(R) {
     if (!k || k.nit < massimaNitidezza * 0.5) return;
     const { rit, box, marg } = ritaglia(k.canvas, k.m);
     const v = { rit, crop: await ritaglioConSfondo(k.canvas, box, GIRO_LATO) };
-    if (!viste.length) Object.assign(R, { primo: k.canvas, box, marg, box0: riquadro(k.m), kx: k.canvas.width / k.m.w, ky: k.canvas.height / k.m.h });
+    if (!viste.length) Object.assign(R, { primo: k.canvas, m0: k.m, box, marg, box0: riquadro(k.m), kx: k.canvas.width / k.m.w, ky: k.canvas.height / k.m.h });
     viste.push(v); ultima = k.imp; ultimaT = performance.now();
     feedback("scatto");
   };
@@ -1907,7 +2049,8 @@ async function elaboraGiro(R) {
   }
   const thumb = (await ridimensiona(viste[0].rit, 160, "image/png")).canvas.toDataURL("image/png");
   const rec = { id: Date.now(), nome, punteggio, img: salvate[0].img, crop: salvate[0].crop, thumb, prof: null, alfa: null, cm,
-                stabilita: null, come: R.come, fotogrammi: viste.length, viste: salvate, creato: new Date().toISOString() };
+                stabilita: null, come: R.come, fotogrammi: viste.length, viste: salvate, creato: new Date().toISOString(),
+                ...(await datiFotogramma(R.primo, R.m0)) };
   log(`cattura a giro: ${viste.length} viste in ${((performance.now() - R.t0) / 1000).toFixed(1)} s, ${nome}${cm ? `, circa ${cm.w}×${cm.h} cm` : ""}`);
   fineCattura();
   oggettoCorrente = rec.id;
@@ -1916,6 +2059,7 @@ async function elaboraGiro(R) {
   mostraScheda(rec, `${viste.length} viste. Calcolo la forma 3D di ogni vista…`);
   await salvaOggetto(rec);
   await profonditaViste(rec);
+  if (PREF.descrizioneScaricata) descriviOggetto(rec);
 }
 // canvas di ogni vista salvata
 async function canvasViste(rec) {
@@ -2064,13 +2208,28 @@ function mostraScheda(rec, stato, ok) {
   $("schedaNome").textContent = rec.nome.charAt(0).toUpperCase() + rec.nome.slice(1);
   const righe = [];
   righe.push(rec.punteggio ? `Riconosciuto al ${Math.round(rec.punteggio * 100)}% (categoria generica)` : "Non riconosciuto: categoria da indicare");
-  righe.push(rec.cm ? `Misure indicative: circa ${rec.cm.w} × ${rec.cm.h} cm (stimate con la tua mano)` : "Misure: tieni la mano aperta vicino all'oggetto durante la cattura per stimarle");
+  if (rec.misura) righe.push(`Misure con ${RIFERIMENTI[rec.misura.tipo].nome}: ${fmtCm(rec.misura.w)} × ${fmtCm(rec.misura.h)} cm (larghezza × altezza)`);
+  else righe.push(rec.cm ? `Misure indicative: circa ${rec.cm.w} × ${rec.cm.h} cm (stimate con la tua mano). Per misure precise: «Misura con carta o A4»` : "Misure: metti una carta formato tessera o un foglio A4 vicino all'oggetto durante la cattura, poi «Misura con carta o A4»");
+  if (rec.modello) righe.push(`Modello dalle misure: ${{ scatola: "scatola", cilindro: "cilindro", telaio: "telaio" }[rec.modello.forma]} ${Math.round(rec.modello.L)} × ${Math.round(rec.modello.A)}${rec.modello.forma === "cilindro" ? "" : " × " + Math.round(rec.modello.P)} mm`);
+  if (rec.glbAi) righe.push(`3D dell'AI collegato: ${rec.glbAiNome || "modello .glb"}`);
   if (rec.stabilita != null) righe.push(`Stabilità della cattura: ${Math.round(rec.stabilita * 100)}% su ${rec.fotogrammi} fotogrammi`);
   if (rec.viste) righe.push(`Cattura a giro: ${rec.viste.length} viste (gira a 360° sul palmo)`);
   $("schedaDett").innerHTML = righe.map(r => r.replace(/&/g, "&amp;").replace(/</g, "&lt;")).join("<br>");
   $("schedaStato").textContent = stato || ""; $("schedaStato").className = "stato" + (ok ? " ok" : "");
   $("schedaGlb").disabled = !rec.prof;
   $("schedaZip").hidden = !(rec.viste && rec.viste.length > 1);
+  const info = [];
+  if (rec.descr) {
+    const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    info.push(`<b>Descrizione:</b> ${esc(rec.descr.it || rec.descr.en)}${rec.descr.it ? "" : " <i>(in inglese)</i>"}`);
+    info.push(`<b>Scritte lette:</b> ${rec.descr.scritte ? esc(rec.descr.scritte) : "nessuna"}`);
+  }
+  $("schedaInfo").innerHTML = info.join("<br>"); $("schedaInfo").hidden = !info.length;
+  $("schedaDescrivi").textContent = rec.descr ? "Descrivi di nuovo" : "Descrivi e leggi le scritte"; $("schedaDescrivi").dataset.conferma = "";
+  $("schedaMisura").disabled = !rec.frame;
+  const vd = visteDisponibili(rec);
+  $("schedaVedi").hidden = vd.length < 2;
+  $("schedaVedi").textContent = "Mostra: " + NOMI_VISTA[vd[(vd.indexOf(rec.vedi || "rilievo") + 1) % vd.length]];
   $("scheda").hidden = false;
   $("scheda").dataset.id = rec.id;
 }
@@ -2086,7 +2245,7 @@ $("schedaPng").addEventListener("click", () => { const r = recScheda(); if (r) {
 $("schedaGlb").addEventListener("click", async () => {
   const r = recScheda(); if (!r || !window.esportaGlb) return;
   try {
-    if (oggettoCorrente !== r.id) await apriOggetto(r.id);
+    if (oggettoCorrente !== r.id || (r.vedi && r.vedi !== "rilievo")) await apriOggetto(r.id, false, true);
     const buf = await window.esportaGlb();
     scarica(new Blob([buf], { type: "model/gltf-binary" }), nomeFile(r) + ".glb");
     log(`esportato .glb: ${(buf.byteLength / 1024).toFixed(0)} KB`); avviso("File .glb pronto");
@@ -2094,15 +2253,299 @@ $("schedaGlb").addEventListener("click", async () => {
 });
 $("schedaClaude").addEventListener("click", async () => {
   const r = recScheda(); if (!r) return;
+  const mis = r.misura ? `${fmtCm(r.misura.w)} × ${fmtCm(r.misura.h)} cm (larghezza × altezza), misurate con una ${RIFERIMENTI[r.misura.tipo].nome} accanto` : r.cm ? `circa ${r.cm.w} × ${r.cm.h} cm, stimate con la mano` : "non stimate";
   const testo = `Progetto Aura · oggetto catturato il ${new Date(r.id).toLocaleString("it-IT")}.
 Categoria riconosciuta dal telefono: ${r.nome}${r.punteggio ? ` (${Math.round(r.punteggio * 100)}%)` : " (non sicura)"}.
-Misure indicative: ${r.cm ? `circa ${r.cm.w} × ${r.cm.h} cm, stimate con la mano` : "non stimate"}.
-Ti allego il ritaglio (.png). Per favore: 1) dimmi che oggetto è, se possibile marca e modello; 2) trova una scheda tecnica anche indicativa (misure, materiali, parti); 3) preparami un modello 3D realistico in .glb con quelle misure, da caricare in Aura con «Carica un modello 3D».`;
+${r.descr ? `Descrizione fatta dal telefono: ${r.descr.it || r.descr.en}
+Scritte lette sull'oggetto: ${r.descr.scritte || "nessuna"}
+` : ""}Misure: ${mis}.${r.modello ? `
+Modello dalle misure già fatto in Aura: ${r.modello.forma} ${Math.round(r.modello.L)} × ${Math.round(r.modello.A)} × ${Math.round(r.modello.P)} mm.` : ""}
+Ti allego il ritaglio (.png). Per favore: 1) dimmi che oggetto è, se possibile marca e modello (usa le scritte lette); 2) trova una scheda tecnica anche indicativa (misure, materiali, parti) e dimmi le fonti; 3) preparami un modello 3D realistico in .glb con quelle misure (in metri, y in su), da collegare all'oggetto in Aura con «Collega un 3D fatto da un'AI».`;
   try { await navigator.clipboard.writeText(testo); avviso("Richiesta copiata: incollala a Claude con il ritaglio", 3500); }
   catch (e) { log("appunti non disponibili"); avviso("Copia non riuscita"); }
   scarica(r.img, nomeFile(r) + ".png");
 });
 
+// ---------- misure (azione 27.96): rettangolo minimo, carta o A4 come metro ----------
+// rettangolo più piccolo (anche ruotato) che contiene la maschera: lati a ≥ b e i 4 angoli, in pixel della maschera
+function rettangoloMaschera(m) {
+  const s = Math.max(1, Math.floor(Math.max(m.w, m.h) / 500)), pts = [];
+  const on = (x, y) => x >= 0 && y >= 0 && x < m.w && y < m.h && m.data[y * m.w + x];
+  for (let y = 0; y < m.h; y += s) for (let x = 0; x < m.w; x += s)
+    if (on(x, y) && (!on(x - s, y) || !on(x + s, y) || !on(x, y - s) || !on(x, y + s))) pts.push([x + 0.5, y + 0.5]);
+  if (pts.length < 3) return null;
+  // inviluppo convesso (catena monotona)
+  pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const giu = [], su = [];
+  for (const p of pts) { while (giu.length >= 2 && cr(giu[giu.length - 2], giu[giu.length - 1], p) <= 0) giu.pop(); giu.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (su.length >= 2 && cr(su[su.length - 2], su[su.length - 1], p) <= 0) su.pop(); su.push(p); }
+  const h = giu.slice(0, -1).concat(su.slice(0, -1));
+  // calibri rotanti: per ogni lato dell'inviluppo, il rettangolo allineato a quel lato
+  let best = null;
+  for (let i = 0; i < h.length; i++) {
+    const p = h[i], q = h[(i + 1) % h.length], L = Math.hypot(q[0] - p[0], q[1] - p[1]); if (L < 1e-6) continue;
+    const ux = (q[0] - p[0]) / L, uy = (q[1] - p[1]) / L;
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const r of h) { const u = r[0] * ux + r[1] * uy, v = -r[0] * uy + r[1] * ux; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    const area = (u1 - u0 + s) * (v1 - v0 + s);
+    if (!best || area < best.area) best = { area, ux, uy, u0, u1, v0, v1 };
+  }
+  if (!best) return null;
+  const { ux, uy, u0, u1, v0, v1 } = best, P = (u, v) => [u * ux - v * uy, u * uy + v * ux];
+  const du = u1 - u0 + s, dv = v1 - v0 + s;
+  // orizzontale o verticale? il lato "u" è più orizzontale se |ux| ≥ |uy|
+  const uOriz = Math.abs(ux) >= Math.abs(uy);
+  return { a: Math.max(du, dv), b: Math.min(du, dv), w: uOriz ? du : dv, h: uOriz ? dv : du,
+           angoli: [P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)], pieno: (m.area || 0) / Math.max(1, du * dv) };
+}
+const RIFERIMENTI = { carta: { a: 85.6, b: 54, nome: "carta formato tessera" }, a4: { a: 297, b: 210, nome: "foglio A4" } };
+function classificaRiferimento(r) {
+  const q = r.a / r.b, ec = Math.abs(q - 85.6 / 54) / (85.6 / 54), ea = Math.abs(q - 297 / 210) / (297 / 210);
+  return ec <= ea ? { tipo: "carta", errore: ec } : { tipo: "a4", errore: ea };
+}
+const mmPerPixel = (tipo, r) => (RIFERIMENTI[tipo].a / r.a + RIFERIMENTI[tipo].b / r.b) / 2;
+// fotogramma intero (per misurare dopo) + rettangolo dell'oggetto, in pixel del fotogramma salvato
+async function datiFotogramma(c, m) {
+  const k = Math.min(1, 1600 / Math.max(c.width, c.height));
+  const { blob } = await ridimensiona(c, 1600, "image/jpeg", 0.88);
+  const r = m && rettangoloMaschera(m); if (!r) return { frame: blob };
+  const sx = c.width / m.w * k, sy = c.height / m.h * k, sc = (sx + sy) / 2;
+  return { frame: blob, oggRett: { a: r.a * sc, b: r.b * sc, w: r.w * sc, h: r.h * sc, angoli: r.angoli.map(([x, y]) => [x * sx, y * sy]) } };
+}
+// cerca da sola una carta o un A4: prova la segmentazione in tanti punti lontani dall'oggetto
+function cercaRiferimento(c, ogg) {
+  if (!segmenter) return null;
+  const xs = ogg ? ogg.angoli.map(p => p[0]) : [], ys = ogg ? ogg.angoli.map(p => p[1]) : [];
+  const ob = ogg ? { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) } : null;
+  const viste = [], trovati = [];
+  for (let gy = 0; gy < 5; gy++) for (let gx = 0; gx < 6; gx++) {
+    const p = { x: (gx + 0.5) / 6, y: (gy + 0.5) / 5 }, px = p.x * c.width, py = p.y * c.height;
+    if (ob && px > ob.x0 && px < ob.x1 && py > ob.y0 && py < ob.y1) continue;                 // sopra l'oggetto
+    if (viste.some(m => m.data[Math.min(m.h - 1, Math.floor(p.y * m.h)) * m.w + Math.min(m.w - 1, Math.floor(p.x * m.w))])) continue;   // già provato
+    const m = segmenta(c, p); if (!m) continue;
+    viste.push(m);
+    const frazione = m.area / (m.w * m.h); if (frazione < 0.004 || frazione > 0.6) continue;
+    const r = rettangoloMaschera(m); if (!r || r.pieno < 0.85) continue;                    // deve essere un rettangolo pieno
+    const cl = classificaRiferimento(r); if (cl.errore > 0.07) continue;                    // e con le proporzioni giuste
+    trovati.push({ ...cl, rett: scalaRett(r, c.width / m.w, c.height / m.h), punteggio: cl.errore + (1 - r.pieno) });
+  }
+  trovati.sort((a, b) => a.punteggio - b.punteggio);
+  return trovati[0] || null;
+}
+function scalaRett(r, sx, sy) {
+  const sc = (sx + sy) / 2;
+  return { a: r.a * sc, b: r.b * sc, w: r.w * sc, h: r.h * sc, pieno: r.pieno, angoli: r.angoli.map(([x, y]) => [x * sx, y * sy]) };
+}
+const fmtCm = mm => (mm / 10).toLocaleString("it-IT", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+// --- pannello della misura ---
+const mis = { rec: null, c: null, rif: null, tipo: "carta" };
+async function apriMisura(rec) {
+  if (!rec.frame) { avviso("Questo oggetto è di una versione vecchia: rifai la cattura", 3500); return; }
+  if (!segmenter) { try { await preparaModelli(); } catch (e) {} }
+  Object.assign(mis, { rec, rif: null });
+  const b = await bitmapDa(rec.frame), c = document.createElement("canvas"); c.width = b.width; c.height = b.height;
+  c.getContext("2d").drawImage(b, 0, 0); if (b.close) b.close(); mis.c = c;
+  $("misura").hidden = false; $("misuraOk").disabled = true;
+  $("misuraTesto").textContent = "Cerco una carta formato tessera o un foglio A4 nella foto…";
+  disegnaMisura();
+  if (!segmenter) { $("misuraTesto").textContent = "La segmentazione non è pronta: apri la fotocamera e riprova."; return; }
+  await new Promise(r => setTimeout(r, 30));
+  const t0 = performance.now(), trovato = cercaRiferimento(c, rec.oggRett);
+  log(`riferimento: ${trovato ? RIFERIMENTI[trovato.tipo].nome + ", proporzioni sbagliate del " + (trovato.errore * 100).toFixed(1) + "%" : "non trovato"} · ${Math.round(performance.now() - t0)} ms`);
+  if (trovato) usaRiferimento(trovato.rett, trovato.tipo, "Trovato da solo");
+  else $("misuraTesto").textContent = "Non l'ho trovato da solo: tocca la carta o il foglio nella foto.";
+}
+function usaRiferimento(rett, tipo, come) {
+  mis.rif = rett; mis.tipo = tipo;
+  for (const b of $("misuraTipo").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === tipo));
+  aggiornaTestoMisura(come); disegnaMisura();
+}
+function calcolaMisura() {
+  const o = mis.rec.oggRett; if (!mis.rif || !o) return null;
+  const k = mmPerPixel(mis.tipo, mis.rif);
+  return { tipo: mis.tipo, mmPx: k, w: Math.round(o.w * k), h: Math.round(o.h * k), a: Math.round(o.a * k), b: Math.round(o.b * k) };
+}
+function aggiornaTestoMisura(come) {
+  const r = calcolaMisura(), cl = classificaRiferimento(mis.rif);
+  const attesa = RIFERIMENTI[mis.tipo].a / RIFERIMENTI[mis.tipo].b, q = mis.rif.a / mis.rif.b;
+  const dubbio = Math.abs(q - attesa) / attesa > 0.07 ? " Le proporzioni non tornano bene: controlla che sia tutto nella foto e non troppo inclinato." : "";
+  $("misuraTesto").innerHTML = `${come ? come + ": " : ""}${RIFERIMENTI[mis.tipo].nome} (in verde). ` +
+    (r ? `Oggetto (in giallo): <b>${fmtCm(r.w)} × ${fmtCm(r.h)} cm</b> (larghezza × altezza).` : "Manca il contorno dell'oggetto.") + dubbio +
+    " Se non è giusto, tocca il riferimento giusto nella foto.";
+  $("misuraOk").disabled = !r;
+}
+function disegnaMisura() {
+  const cv = $("misuraCanvas"), c = mis.c; if (!c) return;
+  cv.width = c.width; cv.height = c.height;
+  const g = cv.getContext("2d"); g.drawImage(c, 0, 0);
+  const poli = (ang, col, riempi) => {
+    g.beginPath(); ang.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath();
+    if (riempi) { g.fillStyle = riempi; g.fill(); }
+    g.lineWidth = Math.max(3, c.width / 250); g.strokeStyle = col; g.stroke();
+  };
+  if (mis.rec && mis.rec.oggRett) poli(mis.rec.oggRett.angoli, "#ffd84f", "rgba(255,216,79,.12)");
+  if (mis.rif) poli(mis.rif.angoli, "#7be0a0", "rgba(123,224,160,.25)");
+}
+$("misuraCanvas").addEventListener("pointerdown", e => {
+  if (!mis.c || !segmenter) return;
+  const r = e.currentTarget.getBoundingClientRect(), k = Math.min(r.width / mis.c.width, r.height / mis.c.height);
+  const ox = r.left + (r.width - mis.c.width * k) / 2, oy = r.top + (r.height - mis.c.height * k) / 2;
+  const p = { x: (e.clientX - ox) / k / mis.c.width, y: (e.clientY - oy) / k / mis.c.height };
+  if (p.x < 0 || p.y < 0 || p.x > 1 || p.y > 1) return;
+  const m = segmenta(mis.c, p), rr = m && rettangoloMaschera(m);
+  if (!rr) { $("misuraTesto").textContent = "Lì non trovo niente: tocca al centro della carta o del foglio."; return; }
+  usaRiferimento(scalaRett(rr, mis.c.width / m.w, mis.c.height / m.h), classificaRiferimento(rr).tipo, "Scelto da te");
+});
+for (const b of $("misuraTipo").querySelectorAll("button")) b.addEventListener("click", () => { if (mis.rif) usaRiferimento(mis.rif, b.dataset.v, ""); });
+$("schedaMisura").addEventListener("click", () => { const r = recScheda(); if (r) apriMisura(r).catch(e => { log("ERRORE misura: " + (e.message || e)); avviso("Misura non riuscita"); }); });
+$("misuraAnnulla").addEventListener("click", () => { $("misura").hidden = true; });
+$("misuraOk").addEventListener("click", async () => {
+  const r = calcolaMisura(); if (!r) return;
+  mis.rec.misura = r; await salvaOggetto(mis.rec);
+  log(`misura con ${RIFERIMENTI[r.tipo].nome}: ${r.w} × ${r.h} mm`);
+  $("misura").hidden = true; mostraScheda(mis.rec, `Misure salvate: ${fmtCm(r.w)} × ${fmtCm(r.h)} cm`, true);
+});
+// ---------- descrizione e scritte (azione 27.94) ----------
+const DESCRIZIONE_MB = 300;
+async function descriviOggetto(rec) {
+  const t0 = performance.now();
+  $("schedaDescrivi").disabled = true;
+  if ($("scheda").dataset.id == rec.id) $("schedaStato").textContent = "Guardo l'oggetto e leggo le scritte…";
+  try {
+    const r = await chiamaAI({ blob: rec.crop || rec.img, compito: "descrivi" });
+    rec.descr = { en: r.descrizione, it: r.it, scritte: r.scritte };
+    PREF.descrizioneScaricata = true; salvaPref();
+    log(`descrizione: ${(r.ms / 1000).toFixed(1)} s su ${r.dispositivo} · scritte: ${r.scritte ? JSON.stringify(r.scritte) : "nessuna"}`);
+    await salvaOggetto(rec);
+    if ($("scheda").dataset.id == rec.id) mostraScheda(rec, `Descrizione pronta in ${((performance.now() - t0) / 1000).toFixed(0)} s.`, true);
+  } catch (e) {
+    log("ERRORE descrizione: " + (e.message || e));
+    if ($("scheda").dataset.id == rec.id) mostraScheda(rec, "Descrizione non riuscita: riprova con il Wi-Fi (il Diario dice perché).");
+  } finally { $("schedaDescrivi").disabled = false; }
+}
+$("schedaDescrivi").addEventListener("click", () => {
+  const r = recScheda(); if (!r) return;
+  const b = $("schedaDescrivi");
+  if (!PREF.descrizioneScaricata && b.dataset.conferma !== "si") {
+    b.dataset.conferma = "si"; b.textContent = `Sì, scarica circa ${DESCRIZIONE_MB} MB`;
+    $("schedaStato").textContent = `La prima volta serve scaricare l'AI della descrizione (circa ${DESCRIZIONE_MB} MB, meglio con il Wi-Fi). Poi resta nel telefono e la foto non esce mai.`;
+    return;
+  }
+  b.dataset.conferma = ""; b.textContent = "Descrivi e leggi le scritte";
+  descriviOggetto(r);
+});
+// ---------- immagine per le AI che fanno il 3D (azione 27.93) ----------
+async function immaginePerAi(rec) {
+  const b = await bitmapDa(rec.img), lato = 1024, k = lato * 0.8 / Math.max(b.width, b.height);
+  const c = document.createElement("canvas"); c.width = c.height = lato;
+  c.getContext("2d").drawImage(b, (lato - b.width * k) / 2, (lato - b.height * k) / 2, b.width * k, b.height * k); if (b.close) b.close();
+  return await new Promise(ok => c.toBlob(ok, "image/png"));
+}
+$("schedaPerAi").addEventListener("click", async () => {
+  const r = recScheda(); if (!r) return;
+  scarica(await immaginePerAi(r), nomeFile(r) + "-per-ai-3d.png");
+  avviso("Immagine quadrata pronta: caricala nell'AI 3D", 3500);
+});
+// ---------- un 3D fatto da un'AI esterna, collegato all'oggetto ----------
+$("schedaAiGlb").addEventListener("click", () => $("fileAiGlb").click());
+$("fileAiGlb").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0], r = recScheda(); e.target.value = "";
+  if (!f || !r) return;
+  r.glbAi = new Blob([await f.arrayBuffer()], { type: "model/gltf-binary" }); r.glbAiNome = f.name; r.vedi = "ai";
+  await salvaOggetto(r);
+  await mostraVistaOggetto(r); mostraScheda(r, `Collegato ${f.name}: è sul palmo. «Mostra» passa dal modello al rilievo.`, true);
+});
+// ---------- che cosa mostrare sul palmo: rilievo/giro, modello dalle misure, 3D dell'AI ----------
+const NOMI_VISTA = { rilievo: "rilievo dalla foto", misure: "modello dalle misure", ai: "3D dell'AI" };
+const visteDisponibili = r => ["rilievo"].concat(r.modello ? ["misure"] : [], r.glbAi ? ["ai"] : []);
+$("schedaVedi").addEventListener("click", async () => {
+  const r = recScheda(); if (!r) return;
+  const v = visteDisponibili(r), i = v.indexOf(r.vedi || "rilievo");
+  r.vedi = v[(i + 1) % v.length]; await salvaOggetto(r);
+  await mostraVistaOggetto(r); mostraScheda(r, "Sul palmo: " + NOMI_VISTA[r.vedi] + ".", true);
+});
+function rendiVisibile() {
+  if (!scena.visibile) {
+    const r = Math.min(innerWidth, innerHeight) * 0.2, q = { x: innerWidth / 2, y: innerHeight * 0.42 };
+    Object.assign(scena, { visibile: true, modo: "libera", armato: true, pos: { ...q }, target: { ...q }, r, raggio: r, zoomUtente: 1, presaDi: null });
+  }
+}
+async function mostraVistaOggetto(rec) {
+  oggettoCorrente = rec.id;
+  if (rec.vedi === "ai" && rec.glbAi && window.caricaGlb) {
+    const f = rec.glbAi; f.name = rec.glbAiNome || "modello-ai.glb";
+    try { await window.caricaGlb(f); } catch (e) { log("ERRORE 3D dell'AI: " + (e.message || e)); avviso("Il .glb non si apre"); return; }
+    $("soggModello").hidden = false; $("nomeModello").textContent = rec.nome + " (AI)";
+    mostraSoggetto("modello"); window.scegliSoggetto("modello"); scena.spin = 0; rendiVisibile(); disegnaOggetti(); return;
+  }
+  if (rec.vedi === "misure" && rec.modello && window.creaModello) {
+    window.creaModello(rec.modello, await aspettoOggetto(rec));
+    $("soggModello").hidden = false; $("nomeModello").textContent = rec.nome + " (misure)";
+    mostraSoggetto("modello"); window.scegliSoggetto("modello"); scena.spin = 0; rendiVisibile(); disegnaOggetti(); return;
+  }
+  await apriOggetto(rec.id, false, true);
+}
+// colore medio dell'oggetto e foto del davanti (sfondo pieno del colore medio)
+async function aspettoOggetto(rec) {
+  const b = await bitmapDa(rec.img), k = Math.min(1, 1024 / Math.max(b.width, b.height));
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(b.width * k)); c.height = Math.max(1, Math.round(b.height * k));
+  const g = c.getContext("2d"); g.drawImage(b, 0, 0, c.width, c.height); if (b.close) b.close();
+  const d = g.getImageData(0, 0, c.width, c.height).data; let r = 0, gg = 0, bb = 0, n = 0;
+  for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 128) { r += d[i]; gg += d[i + 1]; bb += d[i + 2]; n++; }
+  const col = n ? [r / n, gg / n, bb / n].map(v => Math.round(v)) : [180, 180, 180];
+  const colore = "#" + col.map(v => v.toString(16).padStart(2, "0")).join("");
+  const t = document.createElement("canvas"); t.width = c.width; t.height = c.height;
+  const tg = t.getContext("2d"); tg.fillStyle = colore; tg.fillRect(0, 0, t.width, t.height); tg.drawImage(c, 0, 0);
+  return { colore, tex: t };
+}
+// ---------- modello dalle misure (azione 27.95) ----------
+const crea = { rec: null, forma: "scatola" };
+function misureDiPartenza(rec) {
+  if (rec.modello) return rec.modello;
+  const m = rec.misura ? { L: rec.misura.w, A: rec.misura.h } : rec.cm ? { L: rec.cm.w * 10, A: rec.cm.h * 10 } : { L: 100, A: 100 };
+  return { forma: "scatola", L: m.L, A: m.A, P: Math.round(Math.min(m.L, m.A) * 0.5), S: 70 };
+}
+function apriCrea(rec) {
+  crea.rec = rec;
+  const m = misureDiPartenza(rec);
+  $("creaL").value = Math.round(m.L); $("creaA").value = Math.round(m.A); $("creaP").value = Math.round(m.P || 50); $("creaS").value = Math.round(m.S || 70);
+  sceltaForma(m.forma || "scatola");
+  $("creaNota").textContent = rec.misura ? `Misure di partenza prese con la ${RIFERIMENTI[rec.misura.tipo].nome}.` : rec.cm ? "Misure di partenza stimate con la mano: controllale." : "Nessuna misura stimata: scrivi quelle vere.";
+  $("creaGlb").disabled = !rec.modello;
+  $("crea").hidden = false;
+}
+function sceltaForma(f) {
+  crea.forma = f;
+  for (const b of $("creaForma").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.v === f));
+  $("creaLT").textContent = f === "cilindro" ? "Diametro (mm)" : "Larghezza (mm)";
+  $("creaPL").hidden = f === "cilindro";
+  $("creaSL").hidden = f !== "telaio";
+  if (f === "telaio") $("creaNota").textContent = "Telaio: misure esterne, profondità e larghezza del profilo (dal catalogo del produttore). Il vetro è al centro.";
+}
+for (const b of $("creaForma").querySelectorAll("button")) b.addEventListener("click", () => sceltaForma(b.dataset.v));
+$("schedaCrea").addEventListener("click", () => { const r = recScheda(); if (r) apriCrea(r); });
+$("creaAnnulla").addEventListener("click", () => { $("crea").hidden = true; });
+$("creaVai").addEventListener("click", async () => {
+  const r = crea.rec; if (!r) return;
+  const n = id => Math.max(1, Math.min(20000, parseFloat(String($(id).value).replace(",", ".")) || 0));
+  const spec = { forma: crea.forma, L: n("creaL"), A: n("creaA"), P: n("creaP"), S: n("creaS") };
+  if (spec.forma === "telaio") spec.S = Math.min(spec.S, spec.L / 2.2, spec.A / 2.2);
+  r.modello = spec; r.vedi = "misure"; await salvaOggetto(r);
+  log(`modello dalle misure: ${spec.forma} ${spec.L}×${spec.A}${spec.forma === "cilindro" ? "" : "×" + spec.P} mm`);
+  $("crea").hidden = true; $("creaGlb").disabled = false;
+  await mostraVistaOggetto(r); mostraScheda(r, "Modello dalle misure sul palmo. «Mostra» torna al rilievo.", true);
+});
+$("creaGlb").addEventListener("click", async () => {
+  const r = crea.rec; if (!r || !r.modello || !window.esportaModello) return;
+  try {
+    if (r.vedi !== "misure") { r.vedi = "misure"; await mostraVistaOggetto(r); }
+    const buf = await window.esportaModello();
+    scarica(new Blob([buf], { type: "model/gltf-binary" }), nomeFile(r) + "-misure.glb");
+    avviso("File .glb pronto (misure vere in metri)");
+  } catch (e) { log("ERRORE esportazione modello: " + (e.message || e)); avviso("Esportazione non riuscita"); }
+});
+$("creaClaude").addEventListener("click", () => $("schedaClaude").click());
 // --- elenco degli oggetti nel menu ---
 async function caricaOggetti() {
   try { oggetti = (await archivio.oggetti()).sort((a, b) => a.id - b.id); } catch (e) { oggetti = []; }
@@ -2131,8 +2574,13 @@ function disegnaOggetti() {
     el.append(d);
   }
 }
-async function apriOggetto(id, conScheda) {
+async function apriOggetto(id, conScheda, soloRilievo) {
   const g = oggetti.find(o => o.id === id);
+  if (g && !soloRilievo && g.vedi && g.vedi !== "rilievo") {   // l'ultima volta mostrava un modello: riparto da quello
+    await mostraVistaOggetto(g);
+    if (conScheda) { apriMenu(false); mostraScheda(g, "Sul palmo: " + NOMI_VISTA[g.vedi] + ".", true); }
+    return;
+  }
   if (g && g.viste) {                                   // oggetto a giro
     oggettoCorrente = g.id; await mostraGiro(g);
     mostraOggettoComeSoggetto(g); disegnaOggetti();
