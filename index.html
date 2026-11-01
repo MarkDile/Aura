@@ -57,7 +57,8 @@
   .lista button { border: 0; border-radius: 10px; padding: 10px 8px; background: #222a33; color: #cfd8e0; font-size: 14px; font-weight: 600; text-align: left; }
   .lista button[aria-pressed="true"] { background: #39d0ff; color: #001018; }
   .lista button small { display: block; font-weight: 400; font-size: 11px; opacity: .8; margin-top: 2px; }
-  #fileModello { display: none; }
+  #fileModello, #fileFoto { display: none; }
+  .azione.evidenza { background: #39d0ff; color: #001018; }
   .nota { color: #a9b6c2; font-size: 13px; line-height: 1.45; margin: 8px 0 0; }
   .seg button { border: 0; border-radius: 7px; padding: 8px 2px; background: transparent; color: #cfd8e0; font-size: 13px; font-weight: 600; }
   .seg button[aria-pressed="true"] { background: #39d0ff; color: #001018; }
@@ -109,13 +110,18 @@
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 14 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 15 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
   <div class="riga"><span>Dati<small>fps, pinch, stato della Terra</small></span><button class="sw" id="optDati" aria-pressed="false" aria-label="Dati"></button></div>
   <div class="riga"><span>Diario<small>messaggi tecnici ed errori</small></span><button class="sw" id="optLog" aria-pressed="false" aria-label="Diario"></button></div>
   <div class="riga"><span>Suoni<small>su iPhone sostituiscono la vibrazione</small></span><button class="sw" id="optSuoni" aria-pressed="false" aria-label="Suoni"></button></div>
+
+  <h3>Foto 3D</h3>
+  <button class="azione evidenza" id="caricaFoto">Apri una foto dalla galleria…</button>
+  <input type="file" id="fileFoto" accept="image/*">
+  <p class="nota">La foto compare sul palmo al posto della Terra, per ora piatta come una cartolina. Resta sul telefono: non viene caricata da nessuna parte. Per tornare alla Terra: Soggetto → Terra e Luna.</p>
 
   <h3>Sfondo</h3>
   <div class="seg tre" id="sfondo">
@@ -130,6 +136,7 @@
     <button data-v="saturno">Saturno<small>con gli anelli</small></button>
     <button data-v="cubo">Cubo olografico<small>linee luminose</small></button>
     <button data-v="modello" id="soggModello" hidden>Il tuo modello<small id="nomeModello">.glb</small></button>
+    <button data-v="foto" id="soggFoto" hidden>La tua foto<small id="nomeFoto">foto</small></button>
   </div>
   <button class="azione" id="caricaModello">Carica un modello 3D (.glb)…</button>
   <input type="file" id="fileModello" accept=".glb,model/gltf-binary">
@@ -508,7 +515,14 @@ async function caricaScena3D() {
   const perModello = new THREE.Group(); modello.add(perModello);
   const cielo = new THREE.HemisphereLight(0xffffff, 0x334455, 0);    // si accende solo per i modelli
   scene.add(cielo);
-  for (const [nome, obj] of [["marte", marte], ["saturno", saturno], ["cubo", cubo], ["modello", modello]]) {
+  // foto dalla galleria (Foto 3D, azione 27.2): una cartolina con bordo bianco
+  const foto = new THREE.Group();
+  const fotoMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const fotoPiano = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), fotoMat);
+  const fotoBordo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xf4f4f0, side: THREE.DoubleSide }));
+  fotoBordo.position.z = -0.01;
+  foto.add(fotoBordo, fotoPiano);
+  for (const [nome, obj] of [["marte", marte], ["saturno", saturno], ["cubo", cubo], ["modello", modello], ["foto", foto]]) {
     obj.visible = false; sistema.add(obj); soggetti[nome] = [obj];
   }
   let attivo = "terra", girevole = terra;
@@ -516,7 +530,7 @@ async function caricaScena3D() {
     if (!soggetti[nome]) nome = "terra";
     attivo = nome;
     for (const k in soggetti) for (const o of soggetti[k]) o.visible = (k === nome);
-    girevole = { terra, marte, saturno, cubo, modello }[nome];
+    girevole = { terra, marte, saturno, cubo, modello, foto }[nome];
     cielo.intensity = nome === "modello" ? 1.6 : 0;
     log("soggetto: " + nome);
   };
@@ -533,7 +547,31 @@ async function caricaScena3D() {
     let triangoli = 0; m.traverse(o => { if (o.isMesh) triangoli += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
     log(`modello ${file.name}: ${(file.size / 1048576).toFixed(1)} MB · ${Math.round(triangoli).toLocaleString("it-IT")} triangoli`);
   };
-  window.scegliSoggetto(PREF.sogg === "modello" ? "terra" : PREF.sogg);
+  window.caricaFoto = async file => {
+    // ridimensiono a 2048 px al massimo: le foto da 12–50 megapixel non entrerebbero nella memoria grafica
+    let bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch (e) { bmp = await createImageBitmap(file); }
+    const MAX = Math.min(2048, renderer.capabilities.maxTextureSize);
+    const k = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    if (bmp.close) bmp.close();
+    if (fotoMat.map) fotoMat.map.dispose();
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.flipY = false;                            // l'asse y dello schermo va in giù: così la foto è dritta
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    fotoMat.map = t; fotoMat.needsUpdate = true;
+    // il lato lungo misura come il diametro della Terra (2), con un bordo bianco del 4%
+    const a = c.width / c.height, w = a >= 1 ? 2 : 2 * a, h = a >= 1 ? 2 / a : 2;
+    fotoPiano.scale.set(w, h, 1);
+    const b = 0.04 * Math.max(w, h);
+    fotoBordo.scale.set(w + 2 * b, h + 2 * b, 1);
+    log(`foto ${file.name}: ${c.width}×${c.height} (originale ${Math.round(c.width / k)}×${Math.round(c.height / k)})`);
+  };
+  window.scegliSoggetto(PREF.sogg === "modello" || PREF.sogg === "foto" ? "terra" : PREF.sogg);
 
   const alone = new THREE.Mesh(new THREE.RingGeometry(0.75, 1, 48),
     new THREE.MeshBasicMaterial({ color: 0xff4fa3, transparent: true, opacity: 0, depthTest: false }));
@@ -569,7 +607,8 @@ async function caricaScena3D() {
     if (scena.pos) sistema.position.set(scena.pos.x, scena.pos.y, 0);
     sistema.scale.setScalar(Math.max(s, 0.001));
     if (scena.modo !== "presa") autoGiro += dt * 0.35;   // un giro ogni ~18 s; fermo mentre la tieni
-    girevole.rotation.y = autoGiro + scena.spin;
+    // la foto non gira da sola: si inclina solo con il polso o con due dita, al massimo di 30° per lato
+    girevole.rotation.y = attivo === "foto" ? Math.max(-0.52, Math.min(0.52, scena.spin)) : autoGiro + scena.spin;
     if (attivo === "cubo") { nucleo.rotation.y = -autoGiro * 1.7; nucleo.rotation.x = autoGiro * 0.6; }
     orbita.rotation.y += dt * 0.9;                 // la Luna gira intorno in ~7 s
     // dove sta la Luna sullo schermo (per il tocco e l'etichetta)
@@ -874,6 +913,20 @@ $("soggetti").addEventListener("click", e => {
   if (v !== "modello") { PREF.sogg = v; salvaPref(); }
   mostraSoggetto(v);
   if (window.scegliSoggetto) window.scegliSoggetto(v); else log("il soggetto cambierà quando la scena 3D è pronta");
+});
+$("caricaFoto").addEventListener("click", () => $("fileFoto").click());
+$("fileFoto").addEventListener("change", async e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  if (!window.caricaFoto) { avviso("Apri prima la fotocamera"); e.target.value = ""; return; }
+  avviso("Apro la foto…", 4000);
+  try {
+    await window.caricaFoto(f);
+    $("soggFoto").hidden = false; $("nomeFoto").textContent = f.name;
+    mostraSoggetto("foto"); window.scegliSoggetto("foto");
+    scena.spin = 0; apriMenu(false);
+    avviso(scena.visibile ? "Foto pronta" : "Foto pronta: apri il palmo", 2500);
+  } catch (err) { log("ERRORE foto: " + (err.message || err)); avviso("Questa foto non si apre"); }
+  e.target.value = "";
 });
 $("caricaModello").addEventListener("click", () => $("fileModello").click());
 $("fileModello").addEventListener("change", async e => {
