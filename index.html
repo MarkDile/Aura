@@ -227,7 +227,7 @@
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 21 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 22 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -1333,7 +1333,8 @@ async function descrivi(dati, manda) {
       try {
         const model = await T.Florence2ForConditionalGeneration.from_pretrained(DESCRIZIONE, { device, dtype, progress_callback: avanzamento });
         const proc = await T.AutoProcessor.from_pretrained(DESCRIZIONE);
-        flo = { model, proc }; floDisp = device; break;
+        const tok = await T.AutoTokenizer.from_pretrained(DESCRIZIONE);
+        flo = { model, proc, tok }; floDisp = device; break;
       } catch (e) { errore = e; manda({ tipo: "log", testo: "descrizione su " + device + " non disponibile: " + (e && e.message || e) }); }
     }
     if (!flo) throw errore || new Error("modello della descrizione non caricato");
@@ -1342,9 +1343,11 @@ async function descrivi(dati, manda) {
   const pulisci = s => String(s || "").split("</s>").join("").split("<s>").join("").split("<pad>").join("").trim();
   try {
     for (const [compito, max] of [["<MORE_DETAILED_CAPTION>", 90], ["<OCR>", 60]]) {
-      const inputs = await flo.proc(img, flo.proc.construct_prompts(compito));
-      const ids = await flo.model.generate({ ...inputs, max_new_tokens: max });
-      const testo = flo.proc.batch_decode(ids, { skip_special_tokens: false })[0];
+      // come nell'esempio ufficiale di transformers.js v3: il testo lo prepara il tokenizer, l'immagine il processor
+      const testoIn = flo.tok(flo.proc.construct_prompts(compito));
+      const immagineIn = await flo.proc(img);
+      const ids = await flo.model.generate({ ...testoIn, ...immagineIn, max_new_tokens: max });
+      const testo = flo.tok.batch_decode(ids, { skip_special_tokens: false })[0];
       const r = flo.proc.post_process_generation(testo, compito, img.size);
       out[compito] = pulisci(r && r[compito] != null ? r[compito] : testo);
     }
@@ -1413,14 +1416,27 @@ let workerAI = null, aiNellaPagina = null, aiId = 0;
 const aiAttese = new Map();
 function messaggioAI(m) {
   const a = aiAttese.get(m.id); if (!a) return;
-  if (m.tipo === "progresso") { avviso(`Scarico l'AI (solo la prima volta)… ${Math.round(m.pct)}%`, 4000); return; }
+  a.ultimo = performance.now();
+  if (m.tipo === "progresso") {
+    avviso(`Scarico l'AI (solo la prima volta)… ${Math.round(m.pct)}%`, 4000);
+    if (a.dati.compito === "descrivi" && !$("scheda").hidden) $("schedaStato").textContent = `Scarico l'AI della descrizione (solo la prima volta)… ${Math.round(m.pct)}%`;
+    return;
+  }
   if (m.tipo === "log") { log("AI: " + m.testo); return; }
   aiAttese.delete(m.id);
   if (m.tipo === "fatto") a.ok(m); else a.ko(new Error(m.testo));
 }
 async function chiamaAI(dati) {
   const id = ++aiId;
-  const lavoro = new Promise((ok, ko) => aiAttese.set(id, { ok, ko, dati }));
+  const lavoro = new Promise((ok, ko) => {
+    const a = { ok, ko, dati, ultimo: performance.now() }; aiAttese.set(id, a);
+    const controlla = () => {
+      if (!aiAttese.has(id)) return;
+      if (performance.now() - a.ultimo > 180000) { aiAttese.delete(id); ko(new Error("l'AI non risponde da 3 minuti: forse il telefono ha finito la memoria. Chiudi le altre app, ricarica la pagina e riprova")); return; }
+      setTimeout(controlla, 5000);
+    };
+    setTimeout(controlla, 5000);
+  });
   if (!aiNellaPagina) {
     try {
       if (!workerAI) {
@@ -2421,7 +2437,7 @@ async function descriviOggetto(rec) {
     if ($("scheda").dataset.id == rec.id) mostraScheda(rec, `Descrizione pronta in ${((performance.now() - t0) / 1000).toFixed(0)} s.`, true);
   } catch (e) {
     log("ERRORE descrizione: " + (e.message || e));
-    if ($("scheda").dataset.id == rec.id) mostraScheda(rec, "Descrizione non riuscita: riprova con il Wi-Fi (il Diario dice perché).");
+    if ($("scheda").dataset.id == rec.id) mostraScheda(rec, "Descrizione non riuscita: " + String(e.message || e).slice(0, 160));
   } finally { $("schedaDescrivi").disabled = false; }
 }
 $("schedaDescrivi").addEventListener("click", () => {
