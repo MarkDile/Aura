@@ -53,6 +53,17 @@
   .sw[aria-pressed="true"]::after { left: 23px; }
   .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: #222a33; border-radius: 10px; padding: 4px; }
   .seg.tre { grid-template-columns: repeat(3, 1fr); }
+  .seg.due { grid-template-columns: 1fr 1fr; margin-top: 8px; }
+  #rilievo { width: 150px; accent-color: #39d0ff; }
+  .album { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+  .album .alb { position: relative; aspect-ratio: 1; max-width: 100%; }
+  .album .alb button.apri { width: 100%; height: 100%; padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: #222a33; }
+  .album .alb button.apri[aria-current="true"] { border-color: #39d0ff; }
+  .album .alb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .album .alb .x { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0;
+    background: #3a4450; color: #fff; font-size: 14px; line-height: 22px; padding: 0; }
+  .album .alb .senza { position: absolute; left: 3px; bottom: 3px; font-size: 10px; background: rgba(0,0,0,.7); color: #ffd84f; border-radius: 4px; padding: 0 3px; }
+  .album .vuoto { grid-column: 1 / -1; color: #8a96a3; font-size: 13px; }
   .lista { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .lista button { border: 0; border-radius: 10px; padding: 10px 8px; background: #222a33; color: #cfd8e0; font-size: 14px; font-weight: 600; text-align: left; }
   .lista button[aria-pressed="true"] { background: #39d0ff; color: #001018; }
@@ -110,7 +121,7 @@
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 15 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 16 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -121,7 +132,14 @@
   <h3>Foto 3D</h3>
   <button class="azione evidenza" id="caricaFoto">Apri una foto dalla galleria…</button>
   <input type="file" id="fileFoto" accept="image/*">
-  <p class="nota">La foto compare sul palmo al posto della Terra, per ora piatta come una cartolina. Resta sul telefono: non viene caricata da nessuna parte. Per tornare alla Terra: Soggetto → Terra e Luna.</p>
+  <p class="nota">La foto compare sul palmo al posto della Terra; dopo pochi secondi un'intelligenza artificiale dentro il telefono ne calcola la profondità e la foto diventa in rilievo. La foto non lascia il telefono. Per tornare alla Terra: Soggetto → Terra e Luna.</p>
+  <div class="seg due" id="vistaFoto"><button data-v="foto">Foto</button><button data-v="profondita">Profondità</button></div>
+  <div class="riga"><span>Rilievo<small id="rilievoVal">60%</small></span><input type="range" id="rilievo" min="0" max="100" step="5" value="60" aria-label="Rilievo"></div>
+  <div class="riga"><span>Movimento lento<small>la foto oscilla piano per mostrare il rilievo</small></span><button class="sw" id="optOscilla" aria-pressed="true" aria-label="Movimento lento"></button></div>
+  <p class="nota" id="aiInfo">La prima volta l'AI (Depth Anything V2) scarica il suo modello, alcune decine di MB: meglio con il Wi-Fi. Poi resta nel telefono.</p>
+  <h3>Album</h3>
+  <div class="album" id="album"><div class="vuoto">Ancora nessuna foto.</div></div>
+  <p class="nota">Fino a 10 foto, salvate solo su questo telefono con la loro profondità: si riaprono subito. Per sfogliarle: swipe sullo schermo, oppure mano aperta mossa veloce verso destra o sinistra.</p>
 
   <h3>Sfondo</h3>
   <div class="seg tre" id="sfondo">
@@ -166,6 +184,7 @@
     <li><b>Indice sulla Luna</b>: etichetta con la distanza.</li>
     <li><b>Palmo aperto sotto la Terra</b> per 1 secondo: torna sul palmo.</li>
     <li><b>Schermo</b>: un dito la trascina, due dita la ingrandiscono e la ruotano, doppio tocco la fa comparire o la rimette a 1×.</li>
+    <li><b>Foto 3D</b>: inclina la mano per guardarla di lato; swipe o mano aperta veloce per cambiare foto.</li>
   </ul>
 </nav>
 
@@ -240,6 +259,16 @@ const LUNA_ETICHETTA_MS = 2500;
 const ZOOM1_ATTESA_MS = 200;  // la forma della mano deve restare stabile per 0,2 s prima che lo zoom parta
 // tocco sullo schermo
 const DOPPIO_TOCCO_MS = 320;
+// Foto 3D
+const FOTO_LATO_MAX = 2048;    // lato lungo della foto mostrata (px)
+const AI_LATO = 518;           // lato lungo dell'immagine data all'AI: il modello lavora a 518 px
+const RILIEVO_MAX = 0.7;       // rilievo al 100% (la foto è larga 2)
+const INCLINA_MAX = 0.52;      // inclinazione massima della foto: 30°
+const VERSO_INCLINAZIONE = 1;  // 1 o -1: verso in cui la foto si inclina quando inclini la mano
+const ALBUM_MAX = 10;
+const SWIPE_MANO = 0.28;       // swipe con la mano: spostamento di almeno il 28% della larghezza in 0,3 s
+const AI_MODELLO = "onnx-community/depth-anything-v2-small";
+const AI_VERSIONI = ["3.0.2", "3.0.0"];   // @huggingface/transformers (transformers.js)
 // ==========================================================================
 
 let stream = null, facing = null, landmarker = null, mp = null, files = null, draw = null;
@@ -323,6 +352,7 @@ function palmoAperto(s) {
 }
 
 // ---------------- stato della scena (letto da Three.js) ----------------
+let soggettoAttivo = "terra";
 const scena = {
   visibile: false, comparsa: 0,           // 0 = nascosta, 1 = del tutto comparsa
   target: null, raggio: 60,               // in pixel sullo schermo
@@ -333,6 +363,7 @@ const scena = {
   spin: 0, giro: null,                    // rotazione data col polso (radianti)
   zoomUtente: 1, zoomGesto: null,         // zoom a due mani
   luna: null,                             // posizione della Luna sullo schermo (calcolata da Three.js)
+  inclina: { yaw: 0, pitch: 0 }, inclina0: null,   // inclinazione della mano (Foto 3D)
 };
 const pinch = { conta: 0 };               // pinch riconosciuti (tutte le mani)
 const mani = {};                          // stato per mano: { chiuso, punto, misura, visto }
@@ -515,20 +546,67 @@ async function caricaScena3D() {
   const perModello = new THREE.Group(); modello.add(perModello);
   const cielo = new THREE.HemisphereLight(0xffffff, 0x334455, 0);    // si accende solo per i modelli
   scene.add(cielo);
-  // foto dalla galleria (Foto 3D, azione 27.2): una cartolina con bordo bianco
+  // ---------- Foto 3D (azioni 27.2–27.8): foto in rilievo con la profondità calcolata dall'AI ----------
+  // Un piano diviso in una griglia: ogni vertice si sposta in avanti secondo la profondità (vicino = più avanti).
   const foto = new THREE.Group();
   const fotoMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-  const fotoPiano = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), fotoMat);
+  const profMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });   // vista "Profondità" in grigi
+  let fotoGeo = new THREE.PlaneGeometry(1, 1);
+  const fotoPiano = new THREE.Mesh(fotoGeo, fotoMat);
   const fotoBordo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xf4f4f0, side: THREE.DoubleSide }));
-  fotoBordo.position.z = -0.01;
+  fotoBordo.position.z = -0.02;
   foto.add(fotoBordo, fotoPiano);
+  let fotoBase = null;                  // profondità di ogni vertice, da 0 (lontano) a 1 (vicino)
+  let vistaProf = false;
+  const textura = c => {
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.flipY = false;                    // l'asse y dello schermo va in giù: così la foto è dritta
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  };
+  window.applicaRilievo = () => {
+    if (!fotoBase) return;
+    const pos = fotoGeo.attributes.position, k = (PREF.rilievo ?? 60) / 100 * RILIEVO_MAX;
+    for (let i = 0; i < pos.count; i++) pos.setZ(i, fotoBase[i] * k);
+    pos.needsUpdate = true;
+  };
+  window.vistaFoto = v => {
+    vistaProf = v === "profondita";
+    fotoPiano.material = vistaProf && profMat.map ? profMat : fotoMat;
+  };
+  // mostra una foto (canvas già ridotto) con o senza profondità {w, h, data}
+  window.mostraFoto = (c, prof) => {
+    if (fotoMat.map) fotoMat.map.dispose();
+    fotoMat.map = textura(c); fotoMat.needsUpdate = true;
+    window.mettiProfondita(prof, c.width / c.height);
+  };
+  window.mettiProfondita = (prof, a) => {
+    a ||= fotoMat.map ? fotoMat.map.image.width / fotoMat.map.image.height : 1;
+    // griglia: 192 quadratini sul lato lungo (circa 27.000 vertici: leggera per il telefono)
+    const lungo = prof ? 192 : 1;
+    const sx = a >= 1 ? lungo : Math.max(1, Math.round(lungo * a)), sy = a >= 1 ? Math.max(1, Math.round(lungo / a)) : lungo;
+    fotoGeo.dispose();
+    fotoGeo = new THREE.PlaneGeometry(1, 1, sx, sy);
+    fotoPiano.geometry = fotoGeo;
+    fotoBase = prof ? campionaProfondita(normalizzaProfondita(prof), fotoGeo.attributes.uv) : null;
+    window.applicaRilievo();
+    if (profMat.map) { profMat.map.dispose(); profMat.map = null; }
+    if (prof) { profMat.map = textura(canvasProfondita(prof)); profMat.needsUpdate = true; }
+    window.vistaFoto(vistaProf ? "profondita" : "foto");
+    // il lato lungo misura come il diametro della Terra (2), con un bordo bianco del 4%
+    const w = a >= 1 ? 2 : 2 * a, h = a >= 1 ? 2 / a : 2;
+    fotoPiano.scale.set(w, h, 1);
+    const b = 0.04 * Math.max(w, h);
+    fotoBordo.scale.set(w + 2 * b, h + 2 * b, 1);
+  };
   for (const [nome, obj] of [["marte", marte], ["saturno", saturno], ["cubo", cubo], ["modello", modello], ["foto", foto]]) {
     obj.visible = false; sistema.add(obj); soggetti[nome] = [obj];
   }
   let attivo = "terra", girevole = terra;
   window.scegliSoggetto = nome => {
     if (!soggetti[nome]) nome = "terra";
-    attivo = nome;
+    attivo = nome; soggettoAttivo = nome;
     for (const k in soggetti) for (const o of soggetti[k]) o.visible = (k === nome);
     girevole = { terra, marte, saturno, cubo, modello, foto }[nome];
     cielo.intensity = nome === "modello" ? 1.6 : 0;
@@ -546,30 +624,6 @@ async function caricaScena3D() {
     perModello.add(m);
     let triangoli = 0; m.traverse(o => { if (o.isMesh) triangoli += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
     log(`modello ${file.name}: ${(file.size / 1048576).toFixed(1)} MB · ${Math.round(triangoli).toLocaleString("it-IT")} triangoli`);
-  };
-  window.caricaFoto = async file => {
-    // ridimensiono a 2048 px al massimo: le foto da 12–50 megapixel non entrerebbero nella memoria grafica
-    let bmp;
-    try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
-    catch (e) { bmp = await createImageBitmap(file); }
-    const MAX = Math.min(2048, renderer.capabilities.maxTextureSize);
-    const k = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
-    const c = document.createElement("canvas");
-    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-    if (bmp.close) bmp.close();
-    if (fotoMat.map) fotoMat.map.dispose();
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.flipY = false;                            // l'asse y dello schermo va in giù: così la foto è dritta
-    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    fotoMat.map = t; fotoMat.needsUpdate = true;
-    // il lato lungo misura come il diametro della Terra (2), con un bordo bianco del 4%
-    const a = c.width / c.height, w = a >= 1 ? 2 : 2 * a, h = a >= 1 ? 2 / a : 2;
-    fotoPiano.scale.set(w, h, 1);
-    const b = 0.04 * Math.max(w, h);
-    fotoBordo.scale.set(w + 2 * b, h + 2 * b, 1);
-    log(`foto ${file.name}: ${c.width}×${c.height} (originale ${Math.round(c.width / k)}×${Math.round(c.height / k)})`);
   };
   window.scegliSoggetto(PREF.sogg === "modello" || PREF.sogg === "foto" ? "terra" : PREF.sogg);
 
@@ -607,8 +661,14 @@ async function caricaScena3D() {
     if (scena.pos) sistema.position.set(scena.pos.x, scena.pos.y, 0);
     sistema.scale.setScalar(Math.max(s, 0.001));
     if (scena.modo !== "presa") autoGiro += dt * 0.35;   // un giro ogni ~18 s; fermo mentre la tieni
-    // la foto non gira da sola: si inclina solo con il polso o con due dita, al massimo di 30° per lato
-    girevole.rotation.y = attivo === "foto" ? Math.max(-0.52, Math.min(0.52, scena.spin)) : autoGiro + scena.spin;
+    if (attivo === "foto") {
+      // la foto non gira da sola: si inclina con la mano, col polso o con due dita (massimo 30°),
+      // più un'oscillazione lenta che fa vedere il rilievo anche con la mano ferma
+      const osc = PREF.oscilla === false ? 0 : 1, ora = t / 1000;
+      const lim = v => Math.max(-INCLINA_MAX, Math.min(INCLINA_MAX, v));
+      foto.rotation.y = lim(scena.spin + scena.inclina.yaw + osc * 0.16 * Math.sin(ora * 0.9));
+      foto.rotation.x = lim(scena.inclina.pitch + osc * 0.07 * Math.sin(ora * 0.6));
+    } else girevole.rotation.y = autoGiro + scena.spin;
     if (attivo === "cubo") { nucleo.rotation.y = -autoGiro * 1.7; nucleo.rotation.x = autoGiro * 0.6; }
     orbita.rotation.y += dt * 0.9;                 // la Luna gira intorno in ~7 s
     // dove sta la Luna sullo schermo (per il tocco e l'etichetta)
@@ -783,6 +843,31 @@ function aggiorna(res, t) {
     } else scena.ritornoDa = 0;
   }
 
+  // 5b. Foto 3D: inclinazione della mano che la tiene sul palmo (si guarda la foto un po' di lato)
+  if (soggettoAttivo === "foto" && scena.modo === "palmo" && perLato[scena.manoPalmo] && !tocco.attivo) {
+    const m = perLato[scena.manoPalmo], inc = inclinazioneMano(m.f);
+    if (!scena.inclina0) scena.inclina0 = inc;                        // la posizione di partenza vale zero
+    const k = 1 - Math.exp(-0.25);                                   // un po' di morbidezza
+    scena.inclina.yaw += (VERSO_INCLINAZIONE * 0.8 * differenza(inc.yaw, scena.inclina0.yaw) - scena.inclina.yaw) * k;
+    scena.inclina.pitch += (VERSO_INCLINAZIONE * 0.8 * differenza(inc.pitch, scena.inclina0.pitch) - scena.inclina.pitch) * k;
+  } else {
+    scena.inclina0 = null; scena.inclina.yaw *= 0.9; scena.inclina.pitch *= 0.9;
+  }
+  // 5c. Foto 3D: mano aperta mossa veloce a destra o sinistra = foto successiva o precedente
+  if (soggettoAttivo === "foto" && album.length > 1 && scena.visibile) {
+    for (const m of viste) {
+      const h = mani[m.lato];
+      if (!m.aperto || h.chiuso || h.zoom1 || scena.presaDi === m.lato) { h.traccia = []; continue; }
+      (h.traccia ||= []).push({ t, x: m.centro.x });
+      while (h.traccia.length && t - h.traccia[0].t > 300) h.traccia.shift();
+      const dx = m.centro.x - h.traccia[0].x;
+      if (Math.abs(dx) > innerWidth * SWIPE_MANO && t - ultimoSwipe > 900) {
+        ultimoSwipe = t; h.traccia = [];
+        sfoglia(dx < 0 ? 1 : -1);                                    // mano verso sinistra = foto successiva
+      }
+    }
+  }
+
   // 6. tocco della Luna con la punta dell'indice (dito libero, Luna davanti alla Terra)
   let sopra = false;
   if (scena.luna && scena.luna.z > 0) {
@@ -851,6 +936,288 @@ startBtn.addEventListener("click", async () => {
   }
 });
 
+// ---------------- Foto 3D: profondità, AI e album (azioni 27.3–27.8) ----------------
+let album = [];               // [{id, nome, img (Blob), thumb (dataURL), prof {w,h,data} | null}]
+let fotoCorrente = null, ultimoSwipe = 0, albumUrl = [];
+
+// inclinazione del palmo (normale al piano polso – base indice – base mignolo), in radianti
+function inclinazioneMano(f) {
+  const W = video.videoWidth || 1, H = video.videoHeight || 1, sp = facing === "user" ? -1 : 1;
+  const P = i => ({ x: sp * f[i].x * W, y: f[i].y * H, z: f[i].z * W });
+  const a = P(0), b = P(5), c = P(17);
+  const u = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }, v = { x: c.x - a.x, y: c.y - a.y, z: c.z - a.z };
+  let n = { x: u.y * v.z - u.z * v.y, y: u.z * v.x - u.x * v.z, z: u.x * v.y - u.y * v.x };
+  if (n.z > 0) n = { x: -n.x, y: -n.y, z: -n.z };                    // sempre verso la fotocamera
+  return { yaw: Math.atan2(n.x, -n.z), pitch: Math.atan2(n.y, -n.z) };
+}
+
+// profondità 0–255 → 0–1 robusta (scarta il 2% più vicino e più lontano) e un po' sfumata (niente gradini)
+function normalizzaProfondita(p) {
+  const { w, h, data } = p, n = w * h;
+  const ist = new Uint32Array(256); for (let i = 0; i < n; i++) ist[data[i]]++;
+  let acc = 0, lo = 0, hi = 255;
+  for (let v = 0; v < 256; v++) { acc += ist[v]; if (acc >= n * 0.02) { lo = v; break; } }
+  acc = 0; for (let v = 255; v >= 0; v--) { acc += ist[v]; if (acc >= n * 0.02) { hi = v; break; } }
+  const sc = 1 / Math.max(1, hi - lo);
+  let a = new Float32Array(n), b = new Float32Array(n);
+  for (let i = 0; i < n; i++) a[i] = Math.min(1, Math.max(0, (data[i] - lo) * sc));
+  const r = Math.max(1, Math.round(Math.max(w, h) / 200));           // sfocatura a scatola, 2 passate
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let s = 0, c = 0; for (let k = -r; k <= r; k++) { const xx = x + k; if (xx >= 0 && xx < w) { s += a[y * w + xx]; c++; } } b[y * w + x] = s / c;
+    }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let s = 0, c = 0; for (let k = -r; k <= r; k++) { const yy = y + k; if (yy >= 0 && yy < h) { s += b[yy * w + x]; c++; } } a[y * w + x] = s / c;
+    }
+  }
+  return { w, h, data: a };
+}
+// valore della profondità per ogni vertice, letto alle sue coordinate uv (v = 0 è la riga in alto della foto)
+function campionaProfondita(p, uv) {
+  const out = new Float32Array(uv.count), { w, h, data } = p;
+  for (let i = 0; i < uv.count; i++) {
+    const x = Math.min(w - 1, Math.max(0, uv.getX(i) * (w - 1))), y = Math.min(h - 1, Math.max(0, uv.getY(i) * (h - 1)));
+    const x0 = Math.floor(x), y0 = Math.floor(y), x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1), fx = x - x0, fy = y - y0;
+    out[i] = (data[y0 * w + x0] * (1 - fx) + data[y0 * w + x1] * fx) * (1 - fy) + (data[y1 * w + x0] * (1 - fx) + data[y1 * w + x1] * fx) * fy;
+  }
+  return out;
+}
+function canvasProfondita(p) {
+  const c = document.createElement("canvas"); c.width = p.w; c.height = p.h;
+  const g = c.getContext("2d"), im = g.createImageData(p.w, p.h);
+  for (let i = 0; i < p.w * p.h; i++) { const v = p.data[i]; im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
+  g.putImageData(im, 0, 0); return c;
+}
+async function ridimensiona(sorgente, lato, tipo = "image/jpeg", qualita = 0.9) {
+  const W = sorgente.width, H = sorgente.height, k = Math.min(1, lato / Math.max(W, H));
+  const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(W * k)); c.height = Math.max(1, Math.round(H * k));
+  c.getContext("2d").drawImage(sorgente, 0, 0, c.width, c.height);
+  const blob = await new Promise(ok => c.toBlob(ok, tipo, qualita));
+  return { canvas: c, blob };
+}
+async function bitmapDa(blob) {
+  try { return await createImageBitmap(blob, { imageOrientation: "from-image" }); } catch (e) { return await createImageBitmap(blob); }
+}
+
+// ---- l'AI della profondità: gira in un worker (lo schermo resta fluido); se il worker non parte, gira nella pagina ----
+const CODICE_AI = `
+const MODELLO = ${JSON.stringify(AI_MODELLO)}, VERSIONI = ${JSON.stringify(AI_VERSIONI)};
+let T = null, pipe = null, dispositivo = "";
+async function libreria() {
+  let ultimo;
+  for (const v of VERSIONI) {
+    try { return await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@" + v); } catch (e) { ultimo = e; }
+  }
+  throw ultimo;
+}
+export async function lavora(dati, manda) {
+  T ||= await libreria();
+  T.env.allowLocalModels = false;
+  if (!pipe) {
+    const avanzamento = p => { if (p && p.status === "progress" && p.total > 1e6) manda({ tipo: "progresso", file: p.file, pct: p.progress || 0 }); };
+    const prove = (dati.preferisci !== "wasm" && self.navigator && self.navigator.gpu) ? [["webgpu", "fp16"], ["wasm", "q8"]] : [["wasm", "q8"]];
+    let errore;
+    for (const [device, dtype] of prove) {
+      try { pipe = await T.pipeline("depth-estimation", MODELLO, { device, dtype, progress_callback: avanzamento }); dispositivo = device + " " + dtype; break; }
+      catch (e) { errore = e; manda({ tipo: "log", testo: device + " non disponibile: " + (e && e.message || e) }); }
+    }
+    if (!pipe) throw errore || new Error("modello non caricato");
+  }
+  const img = await T.RawImage.fromBlob(dati.blob);
+  const t0 = performance.now();
+  let out;
+  try { out = await pipe(img); }
+  catch (e) {
+    // alcuni telefoni creano il modello sulla GPU ma poi sbagliano il calcolo: riprovo una volta sulla CPU
+    if (!dispositivo.startsWith("webgpu")) throw e;
+    manda({ tipo: "log", testo: "errore su " + dispositivo + " (" + (e && e.message || e) + "): riprovo sulla CPU" });
+    pipe = null;
+    return lavora(Object.assign({}, dati, { preferisci: "wasm" }), manda);
+  }
+  const ms = performance.now() - t0;
+  let w, h, g;
+  if (out.depth && out.depth.data) {
+    const d = out.depth, ch = d.channels || Math.round(d.data.length / (d.width * d.height)) || 1;
+    w = d.width; h = d.height; g = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) g[i] = d.data[i * ch];
+  } else if (out.predicted_depth) {
+    const t = out.predicted_depth, dims = t.dims; h = dims[dims.length - 2]; w = dims[dims.length - 1];
+    let mn = Infinity, mx = -Infinity; for (const v of t.data) { if (v < mn) mn = v; if (v > mx) mx = v; }
+    g = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) g[i] = Math.round((t.data[i] - mn) / Math.max(1e-6, mx - mn) * 255);
+  } else throw new Error("risposta dell'AI senza profondità");
+  return { w, h, data: g, ms, dispositivo };
+}
+if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope) {
+  self.onmessage = async e => {
+    const manda = m => self.postMessage(Object.assign({ id: e.data.id }, m));
+    try { const r = await lavora(e.data, manda); self.postMessage({ id: e.data.id, tipo: "fatto", ...r }, [r.data.buffer]); }
+    catch (err) { manda({ tipo: "errore", testo: String(err && err.message || err) }); }
+  };
+}
+`;
+const urlAI = URL.createObjectURL(new Blob([CODICE_AI], { type: "text/javascript" }));
+let workerAI = null, aiNellaPagina = null, aiId = 0;
+const aiAttese = new Map();
+function messaggioAI(m) {
+  const a = aiAttese.get(m.id); if (!a) return;
+  if (m.tipo === "progresso") { avviso(`Scarico l'AI (solo la prima volta)… ${Math.round(m.pct)}%`, 4000); return; }
+  if (m.tipo === "log") { log("AI: " + m.testo); return; }
+  aiAttese.delete(m.id);
+  if (m.tipo === "fatto") a.ok(m); else a.ko(new Error(m.testo));
+}
+async function calcolaProfondita(blob) {
+  const id = ++aiId;
+  const lavoro = new Promise((ok, ko) => aiAttese.set(id, { ok, ko }));
+  if (!aiNellaPagina) {
+    try {
+      if (!workerAI) {
+        workerAI = new Worker(urlAI, { type: "module" });
+        workerAI.onmessage = e => messaggioAI(e.data);
+        workerAI.onerror = e => {               // il worker non è partito: si passa alla pagina
+          log("AI: il worker non parte (" + (e.message || "errore") + "), calcolo nella pagina");
+          e.preventDefault && e.preventDefault();
+          workerAI.terminate(); workerAI = null; aiNellaPagina = "si";
+          for (const [k, a] of aiAttese) { aiAttese.delete(k); calcolaProfondita(blob).then(a.ok, a.ko); }
+        };
+      }
+      workerAI.postMessage({ id, blob, preferisci: PREF.cpu ? "wasm" : "gpu" });
+      return await lavoro;
+    } catch (e) {
+      if (workerAI || aiNellaPagina) throw e;      // errore dell'AI: lo segnalo
+      log("AI: niente worker (" + (e.message || e) + "), calcolo nella pagina");   // il browser non crea il worker
+      aiNellaPagina = "si";
+    }
+  }
+  const mod = await import(urlAI);
+  try { const r = await mod.lavora({ blob, preferisci: PREF.cpu ? "wasm" : "gpu" }, m => messaggioAI({ id, ...m })); messaggioAI({ id, tipo: "fatto", ...r }); }
+  catch (err) { messaggioAI({ id, tipo: "errore", testo: String(err && err.message || err) }); }
+  return await lavoro;
+}
+
+// ---- album (IndexedDB: resta nel telefono) ----
+const archivio = {
+  db: null,
+  async apri() {
+    if (this.db) return this.db;
+    this.db = await new Promise((ok, ko) => {
+      const r = indexedDB.open("aura-foto", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("foto", { keyPath: "id" });
+      r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
+    });
+    return this.db;
+  },
+  async op(modo, fn) {
+    const db = await this.apri();
+    return new Promise((ok, ko) => {
+      const tx = db.transaction("foto", modo), r = fn(tx.objectStore("foto"));
+      tx.oncomplete = () => ok(r && r.result); tx.onerror = () => ko(tx.error); tx.onabort = () => ko(tx.error);
+    });
+  },
+  tutte() { return this.op("readonly", st => st.getAll()); },
+  metti(rec) { return this.op("readwrite", st => st.put(rec)); },
+  togli(id) { return this.op("readwrite", st => st.delete(id)); },
+};
+async function caricaAlbum() {
+  try { album = (await archivio.tutte()).sort((a, b) => a.id - b.id); }
+  catch (e) { album = []; log("album non disponibile: " + (e.message || e)); }
+  disegnaAlbum();
+}
+function disegnaAlbum() {
+  const el = $("album");
+  albumUrl.forEach(u => URL.revokeObjectURL(u)); albumUrl = [];
+  el.textContent = "";
+  if (!album.length) { el.innerHTML = '<div class="vuoto">Ancora nessuna foto.</div>'; return; }
+  for (const r of album) {
+    const d = document.createElement("div"); d.className = "alb";
+    const b = document.createElement("button"); b.className = "apri"; b.setAttribute("aria-label", "Apri " + r.nome);
+    if (r.id === fotoCorrente) b.setAttribute("aria-current", "true");
+    const img = document.createElement("img"); img.alt = ""; img.src = r.thumb; b.append(img);
+    b.addEventListener("click", () => apriDaAlbum(r.id, true));
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "×"; x.setAttribute("aria-label", "Togli " + r.nome + " dall'album");
+    x.addEventListener("click", async () => {
+      await archivio.togli(r.id).catch(() => {}); album = album.filter(a => a.id !== r.id); disegnaAlbum(); avviso("Tolta dall'album");
+    });
+    d.append(b, x);
+    if (!r.prof) { const s = document.createElement("span"); s.className = "senza"; s.textContent = "piatta"; d.append(s); }
+    el.append(d);
+  }
+}
+async function salvaInAlbum(rec) {
+  album = album.filter(a => a.id !== rec.id).concat(rec).sort((a, b) => a.id - b.id);
+  while (album.length > ALBUM_MAX) {
+    const via = album.shift(); await archivio.togli(via.id).catch(() => {});
+    log("album pieno: tolta la foto più vecchia (" + via.nome + ")");
+  }
+  try { await archivio.metti(rec); } catch (e) { log("ERRORE album: " + (e.message || e)); avviso("Album pieno o non disponibile"); }
+  disegnaAlbum();
+}
+function infoAI(r) {
+  $("aiInfo").textContent = `Ultima profondità: ${(r.ms / 1000).toFixed(1).replace(".", ",")} s · ${r.dispositivo} · ${r.w}×${r.h} px. L'AI è Depth Anything V2 (small) e lavora dentro il telefono.`;
+}
+// rende 3D una foto (rec senza profondità): calcola e salva
+async function aggiungiProfondita(rec) {
+  avviso("L'AI calcola la profondità…", 6000);
+  const t0 = performance.now();
+  const bmp = await bitmapDa(rec.img);
+  const { blob } = await ridimensiona(bmp, AI_LATO, "image/jpeg", 0.92);
+  if (bmp.close) bmp.close();
+  const r = await calcolaProfondita(blob);
+  rec.prof = { w: r.w, h: r.h, data: r.data };
+  const tot = performance.now() - t0;
+  log(`profondità ${rec.nome}: AI ${(r.ms / 1000).toFixed(2)} s · in tutto ${(tot / 1000).toFixed(2)} s · ${r.dispositivo} · ${r.w}×${r.h}`);
+  infoAI(r);
+  if (fotoCorrente === rec.id && window.mettiProfondita) window.mettiProfondita(rec.prof);
+  avviso(`Foto in 3D · ${(tot / 1000).toFixed(1).replace(".", ",")} s`, 2500);
+  feedback("comparsa");
+  await salvaInAlbum(rec);
+}
+async function nuovaFoto(file) {
+  if (!window.mostraFoto) { avviso("Apri prima la fotocamera"); return; }
+  avviso("Apro la foto…", 4000);
+  const bmp = await bitmapDa(file);
+  const grande = await ridimensiona(bmp, Math.min(FOTO_LATO_MAX, 4096));
+  const piccola = await ridimensiona(bmp, 160, "image/jpeg", 0.8);
+  if (bmp.close) bmp.close();
+  const rec = { id: Date.now(), nome: file.name || "foto", img: grande.blob, thumb: piccola.canvas.toDataURL("image/jpeg", 0.8), prof: null };
+  log(`foto ${rec.nome}: ${grande.canvas.width}×${grande.canvas.height}`);
+  fotoCorrente = rec.id;
+  window.mostraFoto(grande.canvas, null);
+  mostraFotoComeSoggetto(rec.nome);
+  await salvaInAlbum(rec);                    // subito, piatta: se l'AI non riesce la foto resta comunque
+  try { await aggiungiProfondita(rec); }
+  catch (e) { log("ERRORE AI: " + (e.message || e)); avviso("Profondità non calcolata: la foto resta piatta", 3500); }
+}
+async function apriDaAlbum(id, chiudiMenu) {
+  const rec = album.find(a => a.id === id); if (!rec || !window.mostraFoto) return;
+  const t0 = performance.now();
+  const bmp = await bitmapDa(rec.img);
+  const c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+  c.getContext("2d").drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
+  fotoCorrente = rec.id;
+  window.mostraFoto(c, rec.prof);
+  mostraFotoComeSoggetto(rec.nome);
+  const ms = performance.now() - t0;
+  log(`album: aperta ${rec.nome} in ${Math.round(ms)} ms${rec.prof ? "" : " (piatta)"}`);
+  disegnaAlbum();
+  if (chiudiMenu) apriMenu(false);
+  if (!rec.prof) aggiungiProfondita(rec).catch(e => { log("ERRORE AI: " + (e.message || e)); avviso("Profondità non calcolata", 3000); });
+}
+function mostraFotoComeSoggetto(nome) {
+  $("soggFoto").hidden = false; $("nomeFoto").textContent = nome;
+  mostraSoggetto("foto"); window.scegliSoggetto("foto");
+  scena.spin = 0; apriMenu(false);
+  if (!scena.visibile) avviso("Foto pronta: apri il palmo", 2500);
+}
+function sfoglia(dir) {
+  if (album.length < 2) return;
+  let i = album.findIndex(a => a.id === fotoCorrente);
+  i = ((i < 0 ? 0 : i + dir) + album.length) % album.length;
+  feedback("pinch");
+  avviso(`Foto ${i + 1} di ${album.length}`, 1200);
+  apriDaAlbum(album[i].id, false);
+}
+caricaAlbum();
+
 // ---------------- menu ----------------
 const menu = $("menu"), velo = $("velo"), menuBtn = $("menuBtn");
 function apriMenu(si) {
@@ -872,6 +1239,7 @@ $("log").hidden = !PREF.log;
 interruttore("optLog", !!PREF.log, v => { $("log").hidden = !v; PREF.log = v; salvaPref(); if (v) $("log").scrollTop = 1e9; });
 if (typeof PREF.suoni === "boolean") suoni = PREF.suoni;
 interruttore("optSuoni", suoni, v => { suoni = v; PREF.suoni = v; salvaPref(); sbloccaAudio(); if (v) setTimeout(() => feedback("luna"), 50); });
+interruttore("optOscilla", PREF.oscilla !== false, v => { PREF.oscilla = v; salvaPref(); });
 interruttore("optGpu", motore === "GPU", async v => {
   PREF.cpu = !v; salvaPref();
   if (landmarker) await caricaMotore(v ? "GPU" : "CPU");
@@ -916,18 +1284,22 @@ $("soggetti").addEventListener("click", e => {
 });
 $("caricaFoto").addEventListener("click", () => $("fileFoto").click());
 $("fileFoto").addEventListener("change", async e => {
-  const f = e.target.files && e.target.files[0]; if (!f) return;
-  if (!window.caricaFoto) { avviso("Apri prima la fotocamera"); e.target.value = ""; return; }
-  avviso("Apro la foto…", 4000);
-  try {
-    await window.caricaFoto(f);
-    $("soggFoto").hidden = false; $("nomeFoto").textContent = f.name;
-    mostraSoggetto("foto"); window.scegliSoggetto("foto");
-    scena.spin = 0; apriMenu(false);
-    avviso(scena.visibile ? "Foto pronta" : "Foto pronta: apri il palmo", 2500);
-  } catch (err) { log("ERRORE foto: " + (err.message || err)); avviso("Questa foto non si apre"); }
-  e.target.value = "";
+  const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+  try { await nuovaFoto(f); }
+  catch (err) { log("ERRORE foto: " + (err.message || err)); avviso("Questa foto non si apre"); }
 });
+function mostraVista(v) { for (const b of $("vistaFoto").children) b.setAttribute("aria-pressed", String(b.dataset.v === v)); }
+mostraVista("foto");
+$("vistaFoto").addEventListener("click", e => {
+  const v = e.target.dataset && e.target.dataset.v; if (!v) return;
+  mostraVista(v); if (window.vistaFoto) window.vistaFoto(v);
+});
+$("rilievo").value = PREF.rilievo ?? 60; $("rilievoVal").textContent = $("rilievo").value + "%";
+$("rilievo").addEventListener("input", e => {
+  PREF.rilievo = +e.target.value; $("rilievoVal").textContent = e.target.value + "%";
+  if (window.applicaRilievo) window.applicaRilievo();
+});
+$("rilievo").addEventListener("change", salvaPref);
 $("caricaModello").addEventListener("click", () => $("fileModello").click());
 $("fileModello").addEventListener("change", async e => {
   const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -946,7 +1318,7 @@ $("flip").addEventListener("click", async () => {
   try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); testoFlip(); }
   catch (e) { log("ERRORE cambio fotocamera: " + e.name + " · " + e.message); }
 });
-$("reset").addEventListener("click", () => { scena.zoomUtente = 1; scena.spin = 0; avviso("Terra a 1×"); apriMenu(false); });
+$("reset").addEventListener("click", () => { scena.zoomUtente = 1; scena.spin = 0; scena.inclina0 = null; avviso("Terra a 1×"); apriMenu(false); });
 $("zero").addEventListener("click", () => { pinch.conta = 0; $("pinchN").textContent = "0"; log("contatore pinch azzerato"); avviso("Pinch: 0"); });
 
 // ---------------- tocco sullo schermo: un dito sposta, due dita ingrandiscono e ruotano, doppio tocco ----------------
@@ -971,6 +1343,7 @@ function lasciaSulloSchermo() {
   scena.raggio = scena.r;
 }
 zona.addEventListener("pointerdown", e => {
+  tocco.suTerra = tocco.punti.size === 0 && scena.visibile && scena.pos && dist({ x: e.clientX, y: e.clientY }, scena.pos) < scena.r * scena.zoomUtente * 1.5;
   try { zona.setPointerCapture(e.pointerId); } catch (err) {}
   tocco.punti.set(e.pointerId, { x: e.clientX, y: e.clientY, t0: performance.now(), x0: e.clientX, y0: e.clientY });
   iniziaGesto();
@@ -999,6 +1372,11 @@ function fineTocco(e) {
     const u = tocco.ultimoTap;
     if (u && ora - u.t < DOPPIO_TOCCO_MS && Math.hypot(q.x - u.x, q.y - u.y) < 60) { doppioTocco(q); tocco.ultimoTap = null; }
     else tocco.ultimoTap = { t: ora, x: q.x, y: q.y };
+  }
+  // swipe veloce in orizzontale, partito fuori dalla foto: foto successiva o precedente
+  const dx = q.x - q.x0, dy = q.y - q.y0;
+  if (soggettoAttivo === "foto" && !tocco.suTerra && tocco.punti.size === 0 && ora - q.t0 < 450 && Math.abs(dx) > 70 && Math.abs(dy) < Math.abs(dx) * 0.6) {
+    sfoglia(dx < 0 ? 1 : -1);
   }
   if (tocco.attivo && tocco.attivo.tipo === "due") log("zoom dallo schermo: " + scena.zoomUtente.toFixed(2) + "×");
   iniziaGesto();   // se resta un dito, continua a trascinare
