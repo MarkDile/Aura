@@ -111,14 +111,6 @@
     pointer-events: none; opacity: 0; transition: opacity .2s; white-space: nowrap; }
   #avviso.on { opacity: 1; }
 
-  /* modalità visore (azione 30): il vetro riflette lo schermo al contrario, quindi lo specchiamo noi */
-  html.visore.specchio #three { transform: scaleX(-1); }
-  html.visore.specchio #etichetta { transform: translate(-50%, -100%) scaleX(-1); }
-  html.visore.specchio #avviso { transform: translateX(-50%) scaleX(-1); }
-  html.visore #canvas { visibility: hidden; }
-  html.visore #giraCam, html.visore #dati, html.visore #log { display: none !important; }
-  html.visore #menuBtn:not(:focus) { opacity: .18; }
-
   /* Oggetti 3D: cattura */
   #traccia { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
   #banner { position: fixed; z-index: 5; left: 66px; right: 10px; top: calc(12px + env(safe-area-inset-top));
@@ -163,6 +155,29 @@
   .pannello label { display: grid; grid-template-columns: 1fr 110px; align-items: center; gap: 8px; font-size: 14px; }
   .pannello label[hidden] { display: none; }
   .pannello input { background: #182029; color: #fff; border: 1px solid #33404c; border-radius: 8px; padding: 9px 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
+  /* Finestra 3D: lo schermo diventa una finestra, la fotocamera frontale segue gli occhi */
+  #finestraBtn { position: fixed; z-index: 6; top: calc(12px + env(safe-area-inset-top)); right: calc(60px + env(safe-area-inset-right));
+    height: 40px; min-width: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.22); color: rgba(255,255,255,.9);
+    padding: 0 10px; font: 700 13px system-ui, sans-serif; letter-spacing: .03em; }
+  #finestraBtn[hidden] { display: none; }
+  #finestraBtn[aria-pressed="true"] { background: #39d0ff; color: #001018; border-color: #39d0ff; }
+  body.finestraVista { background: #020508; }
+  body.finestraVista #video, body.finestraVista #canvas { opacity: 0; }
+  #occhioSpia { position: fixed; z-index: 6; top: calc(58px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right));
+    font: 600 12px system-ui, sans-serif; color: #9fe; background: rgba(0,0,0,.45); border-radius: 999px; padding: 4px 10px; pointer-events: none; }
+  #occhioSpia[hidden] { display: none; }
+  /* Ologramma sul tavolo (realtà aumentata WebXR) */
+  #arBtn { position: fixed; z-index: 6; top: calc(12px + env(safe-area-inset-top)); right: calc(116px + env(safe-area-inset-right));
+    height: 40px; min-width: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.22); color: rgba(255,255,255,.9);
+    padding: 0 10px; font: 700 13px system-ui, sans-serif; letter-spacing: .03em; }
+  #arBtn[hidden] { display: none; }
+  #arStrato { position: fixed; inset: 0; z-index: 20; display: none; touch-action: none; font: 15px/1.4 system-ui, sans-serif; color: #fff; }
+  #arStrato.on { display: block; }
+  #arStrato .guida { position: absolute; left: 12px; right: 12px; top: calc(14px + env(safe-area-inset-top)); text-align: center;
+    background: rgba(0,0,0,.55); border-radius: 12px; padding: 10px 12px; }
+  #arStrato .giu { position: absolute; left: 12px; right: 12px; bottom: calc(18px + env(safe-area-inset-bottom)); display: flex; gap: 8px; justify-content: center; }
+  #arStrato button { border: 0; border-radius: 999px; padding: 12px 18px; font-weight: 700; font-size: 15px; background: rgba(0,0,0,.6); color: #fff; }
+  #arStrato button.primario { background: #39d0ff; color: #001018; }
 </style>
 </head>
 <body>
@@ -232,10 +247,29 @@
 <button id="giraCam" hidden aria-label="Cambia fotocamera (frontale o posteriore)">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><path d="M9 13.2a3 3 0 0 1 5.2-2.1M15 13a3 3 0 0 1-5.2 2.1"/><path d="M14.4 9.6v1.6h-1.6M9.6 16.4v-1.6h1.6"/></svg>
 </button>
+<button id="finestraBtn" hidden aria-pressed="false" aria-label="Finestra 3D: il 3D segue i tuoi occhi">3D</button>
+<div id="occhioSpia" hidden>cerco il viso…</div>
+<button id="arBtn" hidden aria-label="Ologramma sul tavolo (realtà aumentata)">AR</button>
+<div id="arStrato" aria-live="polite">
+  <div class="guida" id="arGuida">Muovi piano il telefono verso il tavolo: cerco una superficie…</div>
+  <div class="giu"><button id="arRiposiziona">Spostalo</button><button class="primario" id="arEsci">Esci</button></div>
+</div>
+
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 23 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 24 · <span id="clock">0</span> s</div>
+
+  <h3>Finestra 3D</h3>
+  <div class="riga"><span>Finestra 3D<small>la fotocamera frontale segue i tuoi occhi: muovi la testa e guardi dentro lo schermo</small></span><button class="sw" id="optFinestra" aria-pressed="false" aria-label="Finestra 3D"></button></div>
+  <div class="riga"><span>Profondità<small id="finestraForzaVal">100%</small></span><input type="range" id="finestraForza" min="40" max="200" step="10" value="100" aria-label="Profondità della finestra 3D"></div>
+  <div class="riga"><span>Larghezza dello schermo<small id="finestraMmVal">70 mm</small></span><input type="range" id="finestraMm" min="55" max="90" step="1" value="70" aria-label="Larghezza dello schermo in millimetri"></div>
+  <div class="riga"><span>Stanza a griglia<small>le pareti azzurre danno la profondità</small></span><button class="sw" id="optStanza" aria-pressed="true" aria-label="Stanza a griglia"></button></div>
+  <p class="nota">Tieni il telefono davanti a te come per leggere, a 30–50 cm. Il soggetto sta dentro lo schermo: sposta la testa a destra, a sinistra, avvicinati. Funziona per una persona alla volta. Se il movimento sembra al contrario o troppo forte, regola «Profondità»; con «Larghezza dello schermo» metti la misura vera del tuo schermo col metro.</p>
+
+  <h3>Ologramma sul tavolo</h3>
+  <button class="azione evidenza" id="arMenu">Metti il soggetto sul tavolo (AR)…</button>
+  <p class="nota" id="arNota">Usa la fotocamera posteriore e la realtà aumentata di Android: il soggetto si appoggia sul tavolo e resta fermo lì. Giraci intorno, avvicinati. Un dito di lato lo ruota, due dita lo ingrandiscono, un tocco lo sposta dove punti. Serve Chrome su Android con «Google Play Services per AR».</p>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -261,12 +295,6 @@
   <div class="riga"><span>Rilievo nel giro<small>spento = foto vere, più realistiche; acceso = un leggero rilievo AI</small></span><button class="sw" id="optGiroRilievo" aria-pressed="false" aria-label="Rilievo nel giro"></button></div>
   <p class="nota">Cerchia l'oggetto con un dito sullo schermo (o toccalo), oppure puntalo con l'indice e tieni fermo 1 secondo.<br><b>Veloce</b>: 2 secondi, una vista in rilievo.<br><b>A giro</b>: prendi l'oggetto in mano e giralo piano (oppure giraci intorno col telefono): ogni volta che si vede un lato nuovo la pagina memorizza una vista, fino a 36. La tua mano viene tolta dal ritaglio. Poi l'oggetto gira a 360° sul palmo: le viste si dissolvono una nell'altra, tutte alla stessa misura. Per tornare al punto di partenza gira l'oggetto di un giro intero. Puoi scaricare le viste per un modello 3D completo.<br><b>Nella scheda</b>: «Descrivi e leggi le scritte» (AI nel telefono), «Misura con carta o A4» (metti una carta formato tessera o un foglio A4 vicino all'oggetto durante la cattura), «Crea dalle misure» (scatola, cilindro o telaio con le misure vere) e «Collega un 3D fatto da un'AI».</p>
   <div class="album" id="oggetti"><div class="vuoto">Ancora nessun oggetto.</div></div>
-
-  <h3>Visore</h3>
-  <button class="azione evidenza" id="visoreBtn">Entra in modalità visore</button>
-  <div class="riga"><span>Specchia l'immagine<small>il vetro riflette al contrario: così la vedi dritta</small></span><button class="sw" id="optSpecchio" aria-pressed="true" aria-label="Specchia l'immagine"></button></div>
-  <p class="nota">Telefono sdraiato sotto il vetro, in orizzontale, con il lato alto dello schermo (dove c'è ☰) verso di te. In visore: solo il soggetto su nero, schermo sempre acceso, pulsanti quasi invisibili, la Terra compare da sola al centro. La luminosità alzala tu al massimo (la pagina non può farlo). Per uscire: ☰ in alto a sinistra.</p>
-  <p class="nota" id="visoreInfo"></p>
 
   <h3>Sfondo</h3>
   <div class="seg tre" id="sfondo">
@@ -350,8 +378,6 @@
 
 <script type="module">
 const $ = id => document.getElementById(id);
-// in modalità visore con lo specchio, il tocco va ribaltato come l'immagine
-const vx = x => (document.documentElement.classList.contains("visore") && document.documentElement.classList.contains("specchio")) ? innerWidth - x : x;
 const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
 const info = $("info"), startBtn = $("start");
 const log = window.log;
@@ -570,6 +596,86 @@ const fmtZoom = z => z.toFixed(1).replace(".", ",") + "×";
 const etichetta = document.getElementById("etichetta");
 let lunaFinoA = 0, lunaUltimoTocco = 0, lunaDentro = false;
 function mostraLuna(t) { lunaFinoA = t + LUNA_ETICHETTA_MS; etichetta.classList.add("on"); feedback("luna"); log("tocco sulla Luna"); }
+
+// ---------------- Finestra 3D: la fotocamera frontale segue gli occhi, lo schermo diventa una finestra ----------------
+const VISO_MODELLO = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const FINESTRA_FOV = 72;          // angolo di vista della fotocamera frontale sul lato lungo dell'immagine (gradi, tipico 65–80)
+const FINESTRA_DIST_MM = 400;     // distanza degli occhi quando il viso non si vede
+const IPD_MM = 63;                // distanza tra le pupille di un adulto
+const finestra = { attiva: false, occhio: null, grezzo: null, ultimo: 0, trovato: false };
+let visoLm = null, visoInCarico = null;
+// millimetri per pixel CSS: dalla larghezza vera dello schermo
+const mmPerPx = () => (PREF.finestraMm || 70) / Math.max(1, Math.min(screen.width || innerWidth, screen.height || innerHeight));
+async function caricaViso() {
+  if (visoLm) return visoLm;
+  if (visoInCarico) return visoInCarico;
+  visoInCarico = (async () => {
+    if (!mp) { mp = await import(MP + "/vision_bundle.mjs"); files = await mp.FilesetResolver.forVisionTasks(MP + "/wasm"); }
+    for (const delegate of ["GPU", "CPU"]) {
+      try {
+        visoLm = await mp.FaceLandmarker.createFromOptions(files, { baseOptions: { modelAssetPath: VISO_MODELLO, delegate }, runningMode: "VIDEO", numFaces: 1 });
+        log(`viso pronto (${delegate})`); return visoLm;
+      } catch (e) { log(`viso (${delegate}) non disponibile: ${e.message || e}`); }
+    }
+    throw new Error("riconoscimento del viso non disponibile");
+  })();
+  try { return await visoInCarico; } finally { visoInCarico = null; }
+}
+// dove sono gli occhi rispetto allo schermo, in pixel CSS (x a destra, y in giù, z verso di te)
+function aggiornaOcchi(r, t) {
+  const lm = r && r.faceLandmarks && r.faceLandmarks[0];
+  if (!lm) {
+    if (finestra.trovato && t - finestra.ultimo > 1500) { finestra.trovato = false; spiaOcchi("cerco il viso…"); }
+    return;
+  }
+  const vw = video.videoWidth || 1, vh = video.videoHeight || 1, P = i => ({ x: lm[i].x * vw, y: lm[i].y * vh });
+  const iride = lm.length > 473;
+  const a = iride ? P(468) : P(33), b = iride ? P(473) : P(263);
+  const ipdPx = Math.max(4, Math.hypot(a.x - b.x, a.y - b.y));
+  const f = (Math.max(vw, vh) / 2) / Math.tan(FINESTRA_FOV / 2 * Math.PI / 180);
+  const z = (iride ? IPD_MM : 93) * f / ipdPx;                          // mm dalla fotocamera
+  const X = ((a.x + b.x) / 2 - vw / 2) * z / f, Y = ((a.y + b.y) / 2 - vh / 2) * z / f;   // mm, assi dell'immagine
+  // la fotocamera frontale vede a specchio: se ti sposti alla tua destra, nell'immagine vai a sinistra
+  const k = mmPerPx(), W = innerWidth, H = innerHeight, ang = (screen.orientation && screen.orientation.angle) || 0;
+  const camPx = ang === 90 ? { x: -6 / k, y: H / 2 } : ang === 270 ? { x: W + 6 / k, y: H / 2 } : { x: W / 2, y: -6 / k };
+  const forza = (PREF.finestraForza || 100) / 100;
+  const g = { x: camPx.x - X / k, y: camPx.y + Y / k, z: Math.max(150, z) / k };
+  // la forza allarga o stringe lo spostamento rispetto al centro dello schermo
+  g.x = W / 2 + (g.x - W / 2) * forza; g.y = H / 2 + (g.y - H / 2) * forza;
+  finestra.grezzo = g; finestra.ultimo = t;
+  if (!finestra.trovato) { finestra.trovato = true; spiaOcchi(`ti vedo · ${Math.round(z / 10)} cm`); setTimeout(() => finestra.trovato && spiaOcchi(""), 1800); }
+}
+function spiaOcchi(testo) { const s = $("occhioSpia"); s.textContent = testo; s.hidden = !testo || !finestra.attiva; }
+// occhio usato dal disegno: segue quello misurato con una molla corta (niente tremolio, poco ritardo)
+function occhioFinestra(dt) {
+  const base = { x: innerWidth / 2, y: innerHeight / 2, z: FINESTRA_DIST_MM / mmPerPx() };
+  const meta = finestra.trovato && finestra.grezzo ? finestra.grezzo : base;
+  const o = finestra.occhio ||= { ...base };
+  const k = 1 - Math.exp(-dt * (finestra.trovato ? 18 : 3));
+  o.x += (meta.x - o.x) * k; o.y += (meta.y - o.y) * k; o.z += (meta.z - o.z) * k;
+  return o;
+}
+async function attivaFinestra(si) {
+  if (si === finestra.attiva) return;
+  if (si) {
+    if (facing !== "user") { await cambiaFotocamera(); if (facing !== "user") { avviso("Serve la fotocamera frontale"); return impostaFinestra(false); } }
+    impostaFinestra(true); spiaOcchi("carico il viso…");
+    try { await caricaViso(); spiaOcchi("cerco il viso…"); avviso("Finestra 3D: muovi la testa e guarda dentro lo schermo", 3500); }
+    catch (e) { log("ERRORE viso: " + (e.message || e)); avviso("Il riconoscimento del viso non parte"); impostaFinestra(false); return; }
+    // il soggetto al centro, un po' dentro lo schermo
+    if (!scena.visibile || scena.modo !== "palmo") {
+      const r = Math.min(innerWidth, innerHeight) * 0.24, q = { x: innerWidth / 2, y: innerHeight * 0.48 };
+      Object.assign(scena, { visibile: true, modo: "libera", armato: true, pos: { ...q }, target: { ...q }, r, raggio: r, presaDi: null });
+    }
+  } else { impostaFinestra(false); }
+}
+function impostaFinestra(si) {
+  finestra.attiva = si; finestra.trovato = false; finestra.occhio = null;
+  PREF.finestra = si; salvaPref();
+  $("finestraBtn").setAttribute("aria-pressed", String(si)); $("optFinestra").setAttribute("aria-pressed", String(si));
+  if (!si) spiaOcchi("");
+  log("finestra 3D " + (si ? "accesa" : "spenta"));
+}
 
 // ---------------- MediaPipe ----------------
 async function creaLandmarker(delegate) {
@@ -943,6 +1049,92 @@ async function caricaScena3D() {
   alone.renderOrder = 10;
   scene.add(alone);
 
+  // ---------- Ologramma sul tavolo (WebXR immersive-ar, Android): il soggetto si appoggia su una superficie vera ----------
+  renderer.xr.enabled = true;
+  const arPosto = new THREE.Group();          // dove l'hai appoggiato (metri, y in su)
+  const arAdatta = new THREE.Group();         // da "pixel con y in giù" a metri con y in su
+  arPosto.add(arAdatta); arPosto.visible = false; scene.add(arPosto);
+  const mirino = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.065, 40).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0x39d0ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+  mirino.matrixAutoUpdate = false; mirino.visible = false; scene.add(mirino);
+  const ar = { sessione: null, sorgente: null, posato: false, giro: 0, zoom: 1, ultimoColpo: null };
+  window.arAttivo = () => !!ar.sessione;
+  function adattaAR() {
+    // foto e oggetti catturati sono "piatti" pensati per lo schermo: li ribalto in y; i solidi (pianeti, .glb) li giro di 180°
+    const R = 0.09 * ar.zoom, piatto = attivo === "foto" || attivo === "oggetto";
+    arAdatta.rotation.set(piatto ? 0 : Math.PI, 0, 0);
+    arAdatta.scale.set(R, piatto ? -R : R, R);
+    arAdatta.position.set(0, R * (attivo === "saturno" ? 1.3 : 1.05), 0);   // appoggiato sopra il tavolo
+    arPosto.rotation.y = ar.giro;
+  }
+  window.avviaAR = async () => {
+    const sessione = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["hit-test"], optionalFeatures: ["dom-overlay"], domOverlay: { root: $("arStrato") } });
+    ar.sessione = sessione; ar.posato = false; ar.zoom = 1; ar.giro = 0;
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(sessione);
+    const vista = await sessione.requestReferenceSpace("viewer");
+    ar.sorgente = await sessione.requestHitTestSource({ space: vista });
+    arAdatta.add(sistema); arPosto.visible = false;
+    sessione.addEventListener("end", () => {
+      ar.sessione = null; ar.sorgente = null; mirino.visible = false; arPosto.visible = false;
+      scene.add(sistema); window.fineAR && window.fineAR();
+    });
+    return sessione;
+  };
+  window.esciAR = () => { if (ar.sessione) ar.sessione.end(); };
+  window.posaAR = () => {
+    if (!ar.ultimoColpo) return false;
+    arPosto.position.setFromMatrixPosition(ar.ultimoColpo);
+    ar.posato = true; arPosto.visible = true; adattaAR(); return true;
+  };
+  window.ruotaAR = d => { ar.giro += d; adattaAR(); };
+  window.zoomAR = k => { ar.zoom = Math.max(0.2, Math.min(8, ar.zoom * k)); adattaAR(); };
+  window.spostaAR = () => { ar.posato = false; arPosto.visible = false; };
+  function frameAR(frame) {
+    if (!ar.sorgente || !frame) return;
+    const ris = frame.getHitTestResults(ar.sorgente), spazio = renderer.xr.getReferenceSpace();
+    const posa = ris.length && ris[0].getPose(spazio);
+    if (posa) {
+      ar.ultimoColpo = (ar.ultimoColpo || new THREE.Matrix4()).fromArray(posa.transform.matrix);
+      mirino.matrix.copy(ar.ultimoColpo); mirino.visible = !ar.posato;
+      window.colpoAR && window.colpoAR(true);
+    } else { mirino.visible = false; window.colpoAR && window.colpoAR(false); }
+    if (ar.posato) adattaAR();
+  }
+  const camAR = new THREE.PerspectiveCamera(60, 1, 0.01, 50);
+  // ---------- Finestra 3D: camera prospettica "fuori asse" (lo schermo è la finestra, l'occhio è dove sei tu) ----------
+  const camF = new THREE.PerspectiveCamera();
+  // stanza a griglia dietro lo schermo: dà la profondità anche senza soggetto
+  const stanza = new THREE.Group(); stanza.visible = false; scene.add(stanza);
+  const stanzaMat = new THREE.LineBasicMaterial({ color: 0x39d0ff, transparent: true, opacity: 0.28 });
+  function costruisciStanza() {
+    for (const c of [...stanza.children]) { stanza.remove(c); c.geometry.dispose(); }
+    const W = innerWidth, H = innerHeight, D = Math.min(W, H) * 1.3, p = [];
+    const linea = (a, b) => p.push(...a, ...b);
+    for (let i = 0; i <= 6; i++) {                                    // anelli di profondità
+      const z = -D * i / 6;
+      linea([0, 0, z], [W, 0, z]); linea([W, 0, z], [W, H, z]); linea([W, H, z], [0, H, z]); linea([0, H, z], [0, 0, z]);
+    }
+    for (let i = 0; i <= 6; i++) {                                    // righe lungo le pareti e sul fondo
+      const x = W * i / 6, y = H * i / 6;
+      linea([x, 0, 0], [x, 0, -D]); linea([x, H, 0], [x, H, -D]); linea([0, y, 0], [0, y, -D]); linea([W, y, 0], [W, y, -D]);
+      linea([x, 0, -D], [x, H, -D]); linea([0, y, -D], [W, y, -D]);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(p, 3));
+    stanza.add(new THREE.LineSegments(g, stanzaMat));
+  }
+  costruisciStanza(); addEventListener("resize", costruisciStanza);
+  function disegnaFinestra(dt) {
+    const e = occhioFinestra(dt), W = innerWidth, H = innerHeight;
+    camF.position.set(e.x, e.y, e.z); camF.rotation.set(0, 0, 0); camF.updateMatrixWorld();
+    const n = Math.max(1, e.z * 0.08), k = n / e.z;
+    // "in alto" è y = 0 (lo schermo ha y in giù): come la camera ortografica, alto e basso sono scambiati
+    camF.projectionMatrix.makePerspective((0 - e.x) * k, (W - e.x) * k, (0 - e.y) * k, (H - e.y) * k, n, e.z + 8000);
+    camF.projectionMatrixInverse.copy(camF.projectionMatrix).invert();
+    stanza.visible = PREF.stanza !== false;
+    renderer.render(scene, camF);
+    stanza.visible = false;
+  }
   function resize() {
     renderer.setSize(innerWidth, innerHeight, false);
     cam.left = 0; cam.right = innerWidth; cam.top = 0; cam.bottom = innerHeight;
@@ -952,7 +1144,7 @@ async function caricaScena3D() {
 
   let prev = performance.now(), autoGiro = 0;
   const vLuna = new THREE.Vector3();
-  renderer.setAnimationLoop(t => {
+  renderer.setAnimationLoop((t, frame) => {
     const dt = Math.min((t - prev) / 1000, 0.1); prev = t;
     // comparsa / scomparsa con una piccola animazione (circa 0,3 s)
     const meta = scena.visibile ? 1 : 0;
@@ -969,8 +1161,11 @@ async function caricaScena3D() {
     scena.zoomVisto = (scena.zoomVisto || 1) + (scena.zoomUtente - (scena.zoomVisto || 1)) * (1 - Math.exp(-dt * 16));
     const s = scena.r * scena.zoom * scena.zoomVisto * (0.2 + 0.8 * easeOutBack(scena.comparsa));
     sistema.visible = scena.comparsa > 0.02 && !!scena.pos && !cattura.attiva;   // durante la cattura si vede solo la fotocamera
-    if (scena.pos) sistema.position.set(scena.pos.x, scena.pos.y, 0);
+    const vistaFinestra = finestra.attiva && !cattura.attiva;
+    if (document.body.classList.contains("finestraVista") !== vistaFinestra) document.body.classList.toggle("finestraVista", vistaFinestra);
+    if (scena.pos) sistema.position.set(scena.pos.x, scena.pos.y, vistaFinestra ? -s * 0.6 : 0);   // nella finestra il soggetto sta un po' dentro lo schermo
     sistema.scale.setScalar(Math.max(s, 0.001));
+    if (ar.sessione) { sistema.position.set(0, 0, 0); sistema.scale.setScalar(1); sistema.visible = ar.posato; frameAR(frame); }   // sul tavolo: misure in metri
     if (scena.modo !== "presa") autoGiro += dt * 0.35;   // un giro ogni ~18 s; fermo mentre la tieni
     if (attivo === "oggetto" && giro && giro.dati.length > 1) {
       // oggetto a giro: l'angolo (giro automatico lento + polso/due dita + inclinazione della mano) sceglie le due viste vicine
@@ -994,17 +1189,17 @@ async function caricaScena3D() {
     if (sistema.visible && attivo === "terra") {
       luna.getWorldPosition(vLuna);
       scena.luna = { x: vLuna.x, y: vLuna.y, z: vLuna.z - sistema.position.z, r: 0.27 * s };
-      etichetta.style.left = (document.documentElement.classList.contains("specchio") && document.documentElement.classList.contains("visore") ? innerWidth - vLuna.x : vLuna.x) + "px"; etichetta.style.top = (vLuna.y - 0.27 * s - 8) + "px";
+      etichetta.style.left = vLuna.x + "px"; etichetta.style.top = (vLuna.y - 0.27 * s - 8) + "px";
     } else scena.luna = null;
     if (etichetta.classList.contains("on") && (performance.now() > lunaFinoA || !sistema.visible)) etichetta.classList.remove("on");
     // alone del pinch
     const chiusa = Object.values(mani).find(h => h.chiuso && h.punto);
     alone.material.opacity += ((chiusa ? 0.9 : 0) - alone.material.opacity) * (1 - Math.exp(-dt * 18));
     if (chiusa) {
-      alone.position.set(chiusa.punto.x, chiusa.punto.y, 1000);
+      alone.position.set(chiusa.punto.x, chiusa.punto.y, vistaFinestra ? 0 : 1000);
       alone.scale.setScalar((chiusa.misura || 60) * 0.35);
     }
-    renderer.render(scene, cam);
+    if (ar.sessione) renderer.render(scene, camAR); else if (vistaFinestra) disegnaFinestra(dt); else renderer.render(scene, cam);
   });
   log("Terra e Luna pronte");
   if (!scena.visibile) avviso("Apri il palmo verso il telefono", 3500);
@@ -1022,6 +1217,9 @@ function loop() {
     catch (e) { info.textContent = "Errore tracciamento: " + e.message; requestAnimationFrame(loop); return; }
     countFrame(performance.now() - t0);
     aggiorna(res, t0);
+    if (finestra.attiva && visoLm && !cattura.attiva) {
+      try { aggiornaOcchi(visoLm.detectForVideo(video, t0 + 0.5), t0); } catch (e) { log("viso: " + (e.message || e)); }
+    }
   }
   requestAnimationFrame(loop);
 }
@@ -1243,7 +1441,7 @@ startBtn.addEventListener("click", async () => {
   startBtn.disabled = true;
   try {
     await openCamera(true);
-    startBtn.hidden = true; testoFlip(); $("giraCam").hidden = false;
+    startBtn.hidden = true; testoFlip(); $("giraCam").hidden = false; $("finestraBtn").hidden = false; $("arBtn").hidden = $("arBtn").dataset.ok !== "1";
     if (!landmarker) await caricaMotore(motore);
     resetFps();
     if (!running) { running = true; loop(); }
@@ -2653,6 +2851,85 @@ interruttore("optLog", !!PREF.log, v => { $("log").hidden = !v; PREF.log = v; sa
 if (typeof PREF.suoni === "boolean") suoni = PREF.suoni;
 interruttore("optSuoni", suoni, v => { suoni = v; PREF.suoni = v; salvaPref(); sbloccaAudio(); if (v) setTimeout(() => feedback("luna"), 50); });
 interruttore("optOscilla", PREF.oscilla !== false, v => { PREF.oscilla = v; salvaPref(); });
+$("finestraBtn").addEventListener("click", () => attivaFinestra(!finestra.attiva));
+$("optFinestra").addEventListener("click", () => attivaFinestra(!finestra.attiva));
+$("finestraForza").value = PREF.finestraForza || 100; $("finestraForzaVal").textContent = $("finestraForza").value + "%";
+$("finestraForza").addEventListener("input", e => { PREF.finestraForza = +e.target.value; $("finestraForzaVal").textContent = e.target.value + "%"; });
+$("finestraForza").addEventListener("change", salvaPref);
+$("finestraMm").value = PREF.finestraMm || 70; $("finestraMmVal").textContent = $("finestraMm").value + " mm";
+$("finestraMm").addEventListener("input", e => { PREF.finestraMm = +e.target.value; $("finestraMmVal").textContent = e.target.value + " mm"; });
+$("finestraMm").addEventListener("change", salvaPref);
+interruttore("optStanza", PREF.stanza !== false, v => { PREF.stanza = v; salvaPref(); });
+// ---------------- Ologramma sul tavolo: pulsanti e gesti (la pagina resta sopra la realtà aumentata) ----------------
+const arUI = { tocchi: new Map(), d0: 0, x0: 0, mosso: false, trovato: false };
+async function controllaAR() {
+  let si = false;
+  try { si = !!(navigator.xr && await navigator.xr.isSessionSupported("immersive-ar")); } catch (e) {}
+  $("arMenu").disabled = !si;
+  if (!si) $("arNota").textContent = "Questo telefono o browser non offre la realtà aumentata nella pagina: serve Chrome su Android con «Google Play Services per AR» (si installa dal Play Store).";
+  return si;
+}
+async function entraAR() {
+  if (!window.avviaAR) { avviso("Apri prima la fotocamera"); return; }
+  if (cattura.attiva) { avviso("Aspetta la fine della cattura"); return; }
+  apriMenu(false);
+  if (finestra.attiva) impostaFinestra(false);
+  // la realtà aumentata usa lei la fotocamera: chiudo la nostra (la riapro all'uscita)
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  try {
+    $("arStrato").classList.add("on"); $("arGuida").textContent = "Muovi piano il telefono verso il tavolo: cerco una superficie…";
+    arUI.trovato = false;
+    await window.avviaAR();
+    log("realtà aumentata avviata");
+  } catch (e) {
+    log("ERRORE realtà aumentata: " + (e.message || e)); avviso("La realtà aumentata non parte", 3000);
+    $("arStrato").classList.remove("on"); riapriDopoAR();
+  }
+}
+window.colpoAR = trovato => {
+  if (trovato === arUI.trovato) return; arUI.trovato = trovato;
+  if (!$("arStrato").classList.contains("on")) return;
+  $("arGuida").textContent = trovato ? "Superficie trovata: tocca lo schermo per appoggiarlo sul cerchio azzurro" : "Muovi piano il telefono verso il tavolo: cerco una superficie…";
+};
+window.fineAR = () => { $("arStrato").classList.remove("on"); log("realtà aumentata chiusa"); riapriDopoAR(); };
+async function riapriDopoAR() {
+  try { await openCamera({ facingMode: facing || "user" }); resetFps(); } catch (e) { log("ERRORE fotocamera dopo AR: " + (e.message || e)); }
+}
+$("arMenu").addEventListener("click", entraAR);
+$("arBtn").addEventListener("click", entraAR);
+$("arEsci").addEventListener("click", e => { e.stopPropagation(); window.esciAR && window.esciAR(); });
+$("arRiposiziona").addEventListener("click", e => { e.stopPropagation(); window.spostaAR && window.spostaAR(); $("arGuida").textContent = "Punta il cerchio azzurro dove vuoi e tocca lo schermo"; });
+const strato = $("arStrato");
+strato.addEventListener("pointerdown", e => {
+  if (e.target.closest("button")) return;
+  arUI.tocchi.set(e.pointerId, { x: e.clientX, y: e.clientY }); arUI.mosso = false;
+  const p = [...arUI.tocchi.values()];
+  if (p.length === 2) arUI.d0 = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+  arUI.x0 = e.clientX;
+});
+strato.addEventListener("pointermove", e => {
+  const q = arUI.tocchi.get(e.pointerId); if (!q) return;
+  const dx = e.clientX - q.x; q.x = e.clientX; q.y = e.clientY;
+  const p = [...arUI.tocchi.values()];
+  if (p.length === 2) {
+    const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    if (arUI.d0 > 10) { window.zoomAR && window.zoomAR(d / arUI.d0); arUI.d0 = d; } arUI.mosso = true;
+  } else if (p.length === 1) {
+    if (Math.abs(e.clientX - arUI.x0) > 8) arUI.mosso = true;
+    if (arUI.mosso) window.ruotaAR && window.ruotaAR(dx * 0.012);
+  }
+});
+const fineToccoAR = e => {
+  const q = arUI.tocchi.get(e.pointerId); if (!q) return;
+  arUI.tocchi.delete(e.pointerId);
+  if (!arUI.mosso && arUI.tocchi.size === 0 && window.posaAR) {
+    if (window.posaAR()) { $("arGuida").textContent = "Appoggiato. Giraci intorno · un dito lo ruota · due dita lo ingrandiscono"; feedback && feedback("comparsa"); }
+  }
+};
+strato.addEventListener("pointerup", fineToccoAR); strato.addEventListener("pointercancel", fineToccoAR);
+controllaAR().then(si => { if (si) { $("arBtn").dataset.ok = "1"; if (!$("giraCam").hidden) $("arBtn").hidden = false; } });
+
+
 interruttore("optGiroRilievo", !!PREF.giroRilievo, v => { PREF.giroRilievo = v; salvaPref(); });
 interruttore("optGpu", motore === "GPU", async v => {
   PREF.cpu = !v; salvaPref();
@@ -2730,7 +3007,10 @@ $("fileModello").addEventListener("change", async e => {
 function testoFlip() { $("flip").textContent = facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"; }
 async function cambiaFotocamera() {
   if (cattura.attiva && cattura.fase !== "scegli") { avviso("Aspetta la fine della cattura"); return; }
-  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); testoFlip(); avviso(facing === "user" ? "Fotocamera frontale" : "Fotocamera posteriore", 1200); }
+  try {
+    await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); testoFlip(); avviso(facing === "user" ? "Fotocamera frontale" : "Fotocamera posteriore", 1200);
+    if (finestra.attiva && facing !== "user") { impostaFinestra(false); avviso("Finestra 3D spenta: serve la fotocamera frontale", 2500); }
+  }
   catch (e) { log("ERRORE cambio fotocamera: " + e.name + " · " + e.message); }
 }
 $("flip").addEventListener("click", cambiaFotocamera);
@@ -2761,15 +3041,15 @@ function lasciaSulloSchermo() {
 }
 zona.addEventListener("pointerdown", e => {
   if (cattura.attiva) { try { zona.setPointerCapture(e.pointerId); } catch (err) {} catturaTocco("down", e); return; }
-  tocco.suTerra = tocco.punti.size === 0 && scena.visibile && scena.pos && dist({ x: vx(e.clientX), y: e.clientY }, scena.pos) < scena.r * scena.zoomUtente * 1.5;
+  tocco.suTerra = tocco.punti.size === 0 && scena.visibile && scena.pos && dist({ x: e.clientX, y: e.clientY }, scena.pos) < scena.r * scena.zoomUtente * 1.5;
   try { zona.setPointerCapture(e.pointerId); } catch (err) {}
-  tocco.punti.set(e.pointerId, { x: vx(e.clientX), y: e.clientY, t0: performance.now(), x0: vx(e.clientX), y0: e.clientY });
+  tocco.punti.set(e.pointerId, { x: e.clientX, y: e.clientY, t0: performance.now(), x0: e.clientX, y0: e.clientY });
   iniziaGesto();
 });
 zona.addEventListener("pointermove", e => {
   if (cattura.attiva) { catturaTocco("move", e); return; }
   const q = tocco.punti.get(e.pointerId); if (!q) return;
-  q.x = vx(e.clientX); q.y = e.clientY;
+  q.x = e.clientX; q.y = e.clientY;
   const g = tocco.attivo, p = puntiTocco();
   if (!g) return;
   if (g.tipo === "uno" && p.length === 1) {
@@ -2814,58 +3094,6 @@ function doppioTocco(q) {
     scena.zoomUtente = 1; scena.spin = 0; avviso("Terra a 1×"); feedback("ritorno"); log("doppio tocco: Terra a 1×");
   }
 }
-
-// ---------------- modalità visore (azione 30) ----------------
-// Il telefono sta sdraiato sotto il vetro a 45°: sfondo nero, immagine specchiata (il vetro la ribalta),
-// schermo sempre acceso, schermo intero e orizzontale bloccato dove il telefono lo permette (Android).
-// Niente doppia immagine stereo: con un solo vetro i due occhi vedono lo stesso schermo; servirà con il visore della fase 1.
-const visore = { on: false, sfondoPrima: null, lock: null };
-const radice = document.documentElement;
-function mostraSpecchio() {
-  const on = PREF.specchio !== false;
-  radice.classList.toggle("specchio", on);
-  $("optSpecchio").setAttribute("aria-pressed", String(on));
-}
-mostraSpecchio();
-$("optSpecchio").addEventListener("click", () => {
-  PREF.specchio = PREF.specchio === false; salvaPref(); mostraSpecchio();
-  log("specchio: " + (PREF.specchio !== false ? "sì" : "no"));
-});
-async function tieniAcceso() {
-  try { if ("wakeLock" in navigator && !visore.lock) { visore.lock = await navigator.wakeLock.request("screen"); visore.lock.addEventListener("release", () => { visore.lock = null; }); } }
-  catch (e) { log("schermo sempre acceso non disponibile: " + e.message); }
-}
-async function entraVisore() {
-  visore.on = true; radice.classList.add("visore");
-  visore.sfondoPrima = PREF.sfondo || "video"; mettiSfondo("nero");
-  $("visoreBtn").textContent = "Esci dalla modalità visore";
-  chiudiMenuVisore();
-  const note = [];
-  try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: "hide" }); }
-  catch (e) { note.push("schermo intero no"); }
-  try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape"); }
-  catch (e) { note.push("blocca tu la rotazione in orizzontale"); }
-  await tieniAcceso();
-  if (!visore.lock) note.push("schermo sempre acceso no");
-  $("visoreInfo").textContent = note.length ? "Su questo telefono: " + note.join(" · ") + "." : "";
-  if (!scena.visibile) doppioTocco({ x: innerWidth / 2, y: innerHeight / 2 });
-  else { scena.modo = "libera"; scena.armato = false; scena.pos = { x: innerWidth / 2, y: innerHeight / 2 }; scena.target = { ...scena.pos }; }
-  avviso("Visore: luminosità al massimo", 2500);
-  log("visore: acceso" + (note.length ? " (" + note.join(", ") + ")" : ""));
-}
-async function esciVisore() {
-  visore.on = false; radice.classList.remove("visore");
-  mettiSfondo(visore.sfondoPrima || PREF.sfondo || "video");
-  $("visoreBtn").textContent = "Entra in modalità visore";
-  try { if (visore.lock) await visore.lock.release(); } catch (e) {}
-  visore.lock = null;
-  try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
-  try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (e) {}
-  log("visore: spento");
-}
-function chiudiMenuVisore() { apriMenu(false); }
-$("visoreBtn").addEventListener("click", () => visore.on ? esciVisore() : entraVisore());
-document.addEventListener("visibilitychange", () => { if (!document.hidden && visore.on) tieniAcceso(); });
 
 window.addEventListener("pagehide", () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
 
