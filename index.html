@@ -29,6 +29,13 @@
     width: 46px; height: 46px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45); color: #fff;
     display: grid; place-items: center; padding: 0; }
   #menuBtn svg { width: 22px; height: 22px; }
+  /* cambio fotocamera: piccola e trasparente, in alto a destra */
+  #giraCam { position: fixed; z-index: 6; top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right));
+    width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.22); color: rgba(255,255,255,.85);
+    display: grid; place-items: center; padding: 0; }
+  #giraCam[hidden] { display: none; }
+  #giraCam svg { width: 20px; height: 20px; }
+  #giraCam:active { background: rgba(57,208,255,.35); }
   #menuBtn.alert::after { content: ""; position: absolute; top: 6px; right: 6px; width: 10px; height: 10px; border-radius: 50%; background: #ff5a5a; }
 
   #start { position: fixed; z-index: 5; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -64,6 +71,7 @@
     background: #3a4450; color: #fff; font-size: 14px; line-height: 22px; padding: 0; }
   .album .alb .senza { position: absolute; left: 3px; bottom: 3px; font-size: 10px; background: rgba(0,0,0,.7); color: #ffd84f; border-radius: 4px; padding: 0 3px; }
   .album .vuoto { grid-column: 1 / -1; color: #8a96a3; font-size: 13px; }
+  .album .alb .giro { position: absolute; right: 3px; bottom: 3px; font-size: 10px; background: rgba(0,0,0,.7); color: #39d0ff; border-radius: 4px; padding: 0 3px; }
   .lista { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .lista button { border: 0; border-radius: 10px; padding: 10px 8px; background: #222a33; color: #cfd8e0; font-size: 14px; font-weight: 600; text-align: left; }
   .lista button[aria-pressed="true"] { background: #39d0ff; color: #001018; }
@@ -110,6 +118,7 @@
     padding: 10px 12px; font: 500 14px/1.4 system-ui, sans-serif; display: flex; gap: 10px; align-items: center; }
   #banner[hidden] { display: none; }
   #banner span { flex: 1; min-width: 0; }
+  #banner #fineGiro { background: #39d0ff; color: #001018; }
   #banner button { border: 0; border-radius: 8px; padding: 8px 12px; background: #3a4450; color: #fff; font-weight: 600; flex: none; }
   #scheda { position: fixed; z-index: 6; left: 0; right: 0; bottom: 0; max-height: 78vh; overflow-y: auto;
     background: rgba(12,16,20,.97); color: #eef; border-radius: 16px 16px 0 0; box-sizing: border-box;
@@ -138,7 +147,7 @@
 <div id="etichetta">Luna · 384.400 km</div>
 <div id="avviso"></div>
 <canvas id="traccia"></canvas>
-<div id="banner" hidden><span id="bannerTesto"></span><button id="annullaCattura">Annulla</button></div>
+<div id="banner" hidden><span id="bannerTesto"></span><button id="fineGiro" hidden>Fine</button><button id="annullaCattura">Annulla</button></div>
 <div id="scheda" hidden aria-live="polite">
   <div class="testa">
     <img class="anteprima" id="schedaImg" alt="Oggetto ritagliato">
@@ -150,6 +159,7 @@
     <button id="schedaGlb">Scarica il 3D (.glb)</button>
     <button id="schedaPng">Scarica il ritaglio (.png)</button>
     <button id="schedaClaude">Copia la richiesta per Claude</button>
+    <button id="schedaZip" hidden>Scarica le viste (.zip)</button>
     <button id="schedaRifai">Rifai la cattura</button>
   </div>
 </div>
@@ -158,10 +168,13 @@
 <button id="menuBtn" aria-label="Menu" aria-expanded="false">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
 </button>
+<button id="giraCam" hidden aria-label="Cambia fotocamera (frontale o posteriore)">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><path d="M9 13.2a3 3 0 0 1 5.2-2.1M15 13a3 3 0 0 1-5.2 2.1"/><path d="M14.4 9.6v1.6h-1.6M9.6 16.4v-1.6h1.6"/></svg>
+</button>
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 18 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 19 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -182,8 +195,9 @@
   <p class="nota">Fino a 10 foto, salvate solo su questo telefono con la loro profondità: si riaprono subito. Per sfogliarle: swipe sullo schermo, oppure mano aperta mossa veloce verso destra o sinistra.</p>
 
   <h3>Oggetti 3D</h3>
-  <button class="azione evidenza" id="catturaOggetto">Cattura un oggetto dalla fotocamera…</button>
-  <p class="nota">Cerchia l'oggetto con un dito sullo schermo (o toccalo), oppure puntalo con l'indice e tieni fermo 1 secondo. Per 2 secondi la pagina lo osserva, sceglie il fotogramma più nitido, lo ritaglia, prova a riconoscerlo e lo trasforma in un oggetto 3D in rilievo.</p>
+  <button class="azione evidenza" id="catturaOggetto">Cattura veloce (2 secondi)…</button>
+  <button class="azione evidenza" id="catturaGiro">Cattura a giro, da più lati…</button>
+  <p class="nota">Cerchia l'oggetto con un dito sullo schermo (o toccalo), oppure puntalo con l'indice e tieni fermo 1 secondo.<br><b>Veloce</b>: 2 secondi, una vista in rilievo.<br><b>A giro</b>: prendi l'oggetto in mano e giralo piano (oppure giraci intorno col telefono): ogni volta che si vede un lato nuovo la pagina memorizza una vista, fino a 24. La tua mano viene tolta dal ritaglio. Poi l'oggetto gira a 360° sul palmo e puoi scaricare le viste per un modello 3D completo.</p>
   <div class="album" id="oggetti"><div class="vuoto">Ancora nessun oggetto.</div></div>
 
   <h3>Sfondo</h3>
@@ -325,6 +339,11 @@ const PALMO_CM = 8;            // distanza tipica tra le nocche di indice e mign
 const RILIEVO_OGGETTO = 0.55;  // spessore del davanti dell'oggetto (la larghezza è 2)
 const RUOTA_OGGETTO = 0.8;     // l'oggetto si può girare fino a 45° per lato
 const OGGETTI_MAX = 20;
+// cattura a giro
+const GIRO_MAX_VISTE = 24;     // viste memorizzate al massimo
+const GIRO_MAX_MS = 40000;     // dopo 40 s si ferma da sola
+const GIRO_NOVITA = 0.14;      // quanto deve cambiare l'aspetto dell'oggetto per diventare una nuova vista
+const GIRO_LATO = 640;         // lato lungo delle viste salvate (px)
 // ==========================================================================
 
 let stream = null, facing = null, landmarker = null, mp = null, files = null, draw = null;
@@ -659,25 +678,55 @@ async function caricaScena3D() {
   const oggDavanti = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), oggMat);
   const oggDietro = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), oggMat);
   oggetto.add(oggDavanti, oggDietro);
-  window.mostraOggetto = (c, prof, alfa) => {
-    // c: ritaglio RGBA · prof: profondità {w,h,data} · alfa: maschera {w,h,data} alla misura della profondità
-    if (oggMat.map) oggMat.map.dispose();
-    oggMat.map = textura(c); oggMat.needsUpdate = true;
+  // una vista: textura + geometria davanti e dietro (in rilievo se c'è la profondità)
+  function costruisciVista(c, prof, alfa) {
     const a = c.width / c.height, lungo = prof ? 160 : 1;
     const sx = a >= 1 ? lungo : Math.max(1, Math.round(lungo * a)), sy = a >= 1 ? Math.max(1, Math.round(lungo / a)) : lungo;
-    for (const [m, verso] of [[oggDavanti, 1], [oggDietro, -0.75]]) {
-      m.geometry.dispose();
-      m.geometry = new THREE.PlaneGeometry(1, 1, sx, sy);
+    const geo = verso => {
+      const g = new THREE.PlaneGeometry(1, 1, sx, sy);
       if (prof) {
-        const base = campionaProfondita(normalizzaProfondita(prof, alfa), m.geometry.attributes.uv);
-        const pos = m.geometry.attributes.position;
+        const base = campionaProfondita(normalizzaProfondita(prof, alfa), g.attributes.uv), pos = g.attributes.position;
         for (let i = 0; i < pos.count; i++) pos.setZ(i, verso * (0.04 + base[i]) * RILIEVO_OGGETTO);
         pos.needsUpdate = true;
       }
-    }
-    const w = a >= 1 ? 2 : 2 * a, h = a >= 1 ? 2 / a : 2;
-    oggDavanti.scale.set(w, h, 1); oggDietro.scale.set(w, h, 1);
+      return g;
+    };
+    return { tex: textura(c), davanti: geo(1), dietro: geo(-0.75), w: a >= 1 ? 2 : 2 * a, h: a >= 1 ? 2 / a : 2 };
+  }
+  function liberaVista(v) { if (v) { v.tex.dispose(); v.davanti.dispose(); v.dietro.dispose(); } }
+  function mettiVista(v) {
+    oggMat.map = v.tex; oggMat.needsUpdate = true;
+    oggDavanti.geometry = v.davanti; oggDietro.geometry = v.dietro;
+    oggDavanti.scale.set(v.w, v.h, 1); oggDietro.scale.set(v.w, v.h, 1);
+  }
+  let vistaSingola = null, giro = null;    // giro: { dati: [{canvas, prof, alfa}], cache: [vista|null], indice }
+  function liberaTutto() {
+    liberaVista(vistaSingola); vistaSingola = null;
+    if (giro) { giro.cache.forEach(liberaVista); giro = null; }
+  }
+  window.mostraOggetto = (c, prof, alfa) => {
+    // c: ritaglio RGBA · prof: profondità {w,h,data} · alfa: maschera {w,h,data} alla misura della profondità
+    liberaTutto();
+    vistaSingola = costruisciVista(c, prof, alfa); mettiVista(vistaSingola);
   };
+  // oggetto a giro: tante viste, si mostra quella che corrisponde all'angolo
+  window.mostraOggettoGiro = dati => {
+    liberaTutto();
+    giro = { dati, cache: dati.map(() => null), indice: -1 };
+    usaVista(0);
+  };
+  window.aggiornaVista = (i, c, prof, alfa) => {
+    if (!giro || !giro.dati[i]) return;
+    giro.dati[i] = { canvas: c, prof, alfa };
+    const vecchia = giro.cache[i]; giro.cache[i] = null;
+    if (giro.indice === i) { giro.indice = -1; usaVista(i); }
+    liberaVista(vecchia);
+  };
+  function usaVista(i) {
+    if (!giro || giro.indice === i) return;
+    if (!giro.cache[i]) { const d = giro.dati[i]; giro.cache[i] = costruisciVista(d.canvas, d.prof, d.alfa); }
+    mettiVista(giro.cache[i]); giro.indice = i;
+  }
   // esporta l'oggetto in .glb (asse y in su, come vogliono i visualizzatori 3D)
   window.esportaGlb = async () => {
     const { GLTFExporter } = await import("three/addons/exporters/GLTFExporter.js");
@@ -749,7 +798,15 @@ async function caricaScena3D() {
     if (scena.pos) sistema.position.set(scena.pos.x, scena.pos.y, 0);
     sistema.scale.setScalar(Math.max(s, 0.001));
     if (scena.modo !== "presa") autoGiro += dt * 0.35;   // un giro ogni ~18 s; fermo mentre la tieni
-    if (attivo === "foto" || attivo === "oggetto") {
+    if (attivo === "oggetto" && giro && giro.dati.length > 1) {
+      // oggetto a giro: l'angolo (giro automatico lento + polso/due dita + inclinazione della mano) sceglie la vista;
+      // dentro ogni vista una piccola rotazione fa passare da una all'altra in modo morbido
+      const N = giro.dati.length, angolo = autoGiro * 0.6 + scena.spin + scena.inclina.yaw * 1.5;
+      const u = ((angolo / (2 * Math.PI)) % 1 + 1) % 1, i = Math.min(N - 1, Math.floor(u * N)), frac = u * N - i;
+      usaVista(i);
+      oggetto.rotation.y = Math.max(-0.35, Math.min(0.35, (frac - 0.5) * (2 * Math.PI / N) * 0.8));
+      oggetto.rotation.x = Math.max(-RUOTA_OGGETTO, Math.min(RUOTA_OGGETTO, scena.inclina.pitch));
+    } else if (attivo === "foto" || attivo === "oggetto") {
       // foto e oggetti non girano da soli: si inclinano con la mano, col polso o con due dita
       // (foto 30°, oggetto 45°), più un'oscillazione lenta che fa vedere il rilievo anche con la mano ferma
       const osc = PREF.oscilla === false ? 0 : 1, ora = t / 1000, max = attivo === "foto" ? INCLINA_MAX : RUOTA_OGGETTO;
@@ -1012,7 +1069,7 @@ startBtn.addEventListener("click", async () => {
   startBtn.disabled = true;
   try {
     await openCamera(true);
-    startBtn.hidden = true; testoFlip();
+    startBtn.hidden = true; testoFlip(); $("giraCam").hidden = false;
     if (!landmarker) await caricaMotore(motore);
     resetFps();
     if (!running) { running = true; loop(); }
@@ -1351,21 +1408,23 @@ function adattaTraccia() {
 }
 function bannerCattura(testo) { $("bannerTesto").textContent = testo; $("banner").hidden = !testo; }
 
-function iniziaCattura() {
+function iniziaCattura(modo) {
   if (!stream || !video.videoWidth) { avviso("Apri prima la fotocamera"); return; }
-  Object.assign(cattura, { attiva: true, fase: "scegli", tracciato: [], punta: null, raccolta: null });
+  Object.assign(cattura, { attiva: true, fase: "scegli", tracciato: [], punta: null, raccolta: null, modo: modo === "giro" ? "giro" : "veloce", basta: false });
   apriMenu(false); $("scheda").hidden = true;
   bannerCattura("Cerchia l'oggetto con un dito, oppure puntalo con l'indice e tieni fermo 1 secondo.");
   preparaModelli();                                   // intanto carico segmentazione e riconoscimento
   log("cattura: scegli l'oggetto");
 }
 function fineCattura(msg) {
-  cattura.attiva = false; cattura.fase = ""; bannerCattura("");
+  cattura.attiva = false; cattura.fase = ""; bannerCattura(""); $("fineGiro").hidden = true;
   adattaTraccia(); tctx.clearRect(0, 0, innerWidth, innerHeight);
   if (msg) avviso(msg, 2500);
 }
 $("annullaCattura").addEventListener("click", () => fineCattura("Cattura annullata"));
-$("catturaOggetto").addEventListener("click", iniziaCattura);
+$("catturaOggetto").addEventListener("click", () => iniziaCattura("veloce"));
+$("catturaGiro").addEventListener("click", () => iniziaCattura("giro"));
+$("fineGiro").addEventListener("click", () => { cattura.basta = true; });
 
 async function preparaModelli() {
   if (!mp) return;
@@ -1436,9 +1495,10 @@ async function avviaRaccolta(punto, poligono, come) {
   log(`cattura: oggetto scelto con ${come} in (${punto.x.toFixed(2)}, ${punto.y.toFixed(2)})`);
   await preparaModelli();
   const R = cattura.raccolta = { punto, poligono, come, fotogrammi: [], t0: performance.now(), mano: misuraMano() };
+  if (cattura.modo === "giro") return raccoltaGiro(R);
   while (cattura.attiva && performance.now() - R.t0 < CATTURA_MS) {
     const f = fotogramma();
-    f.maschera = segmenter ? segmenta(f.canvas, R.punto) : null;
+    f.maschera = segmenter ? togliMano(segmenta(f.canvas, R.punto)) : null;
     if (f.maschera) {
       // il punto segue l'oggetto: diventa il centro della maschera (se il telefono si sposta un po')
       const c = centroMaschera(f.maschera); if (c) R.punto = c;
@@ -1537,12 +1597,33 @@ function pulisciMaschera(m, punto, poligono) {
     for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) if (m.data[y * w + x]) { const d = (x - sx) ** 2 + (y - sy) ** 2; if (d < best) { best = d; sx = x; sy = y; } }
     if (best === Infinity) return null;
   }
-  const coda = [sy * w + sx]; out[coda[0]] = 1; let n = 0;
-  while (coda.length) {
-    const i = coda.pop(); n++; const x = i % w, y = (i / w) | 0;
-    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1])
-      if (j >= 0 && !out[j] && m.data[j]) { out[j] = 1; coda.push(j); }
+  // divido la maschera in pezzi collegati; tengo il pezzo del punto e quelli grandi almeno un quarto di lui
+  // (un oggetto tenuto in mano può risultare diviso in più pezzi dalle dita che gli passano davanti)
+  const pezzo = new Int32Array(w * h), aree = [0];
+  for (let k = 0; k < w * h; k++) {
+    if (!m.data[k] || pezzo[k]) continue;
+    const id = aree.length, coda = [k]; pezzo[k] = id; let a = 0;
+    while (coda.length) {
+      const i = coda.pop(); a++; const x = i % w, y = (i / w) | 0;
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1])
+        if (j >= 0 && !pezzo[j] && m.data[j]) { pezzo[j] = id; coda.push(j); }
+    }
+    aree.push(a);
   }
+  let mio = pezzo[sy * w + sx];
+  // se il punto è finito su una scheggia (per esempio tra due dita), parto dal pezzo più grande
+  const piuGrande = aree.indexOf(Math.max(...aree.slice(1)));
+  if (aree[mio] < aree[piuGrande] * 0.25) mio = piuGrande;
+  const soglia = aree[mio] * 0.25;
+  // un pezzo grande conta solo se è vicino a quello del punto (entro metà della sua misura)
+  const box = { x0: w, y0: h, x1: 0, y1: 0 };
+  for (let k = 0; k < w * h; k++) if (pezzo[k] === mio) { const x = k % w, y = (k / w) | 0; box.x0 = Math.min(box.x0, x); box.x1 = Math.max(box.x1, x); box.y0 = Math.min(box.y0, y); box.y1 = Math.max(box.y1, y); }
+  const mx = (box.x1 - box.x0) * 0.5, my = (box.y1 - box.y0) * 0.5, vicino = new Uint8Array(aree.length);
+  for (let k = 0; k < w * h; k++) { const id = pezzo[k]; if (!id || vicino[id] || aree[id] < soglia) continue;
+    const x = k % w, y = (k / w) | 0; if (x >= box.x0 - mx && x <= box.x1 + mx && y >= box.y0 - my && y <= box.y1 + my) vicino[id] = 1; }
+  vicino[mio] = 1;
+  let n = 0;
+  for (let k = 0; k < w * h; k++) if (pezzo[k] && vicino[pezzo[k]]) { out[k] = 1; n++; }
   if (poligono && poligono.length > 2) {
     const dentro = (px, py) => { let c = false; for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
       const a = poligono[i], b = poligono[j];
@@ -1564,6 +1645,81 @@ function mascheraDaPoligono(w, h, poligono, punto) {
   }
   return { w, h, data: out, area: n };
 }
+// ritaglio: colori del fotogramma + trasparenza dalla maschera, bordi ammorbiditi
+function ritaglia(c, maschera) {
+  const vw = c.width, vh = c.height;
+  // la maschera può avere una risoluzione diversa dal fotogramma: la riporto in pixel del fotogramma
+  const box0 = riquadro(maschera), kx = vw / maschera.w, ky = vh / maschera.h;
+  const marg = 0.06 * Math.max(box0.w * kx, box0.h * ky);
+  const box = { x: Math.max(0, Math.floor(box0.x * kx - marg)), y: Math.max(0, Math.floor(box0.y * ky - marg)) };
+  box.w = Math.min(vw - box.x, Math.ceil(box0.w * kx + 2 * marg)); box.h = Math.min(vh - box.y, Math.ceil(box0.h * ky + 2 * marg));
+  const rit = document.createElement("canvas"); rit.width = box.w; rit.height = box.h;
+  const g = rit.getContext("2d"); g.drawImage(c, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+  const im = g.getImageData(0, 0, box.w, box.h);
+  const alfa = new Float32Array(box.w * box.h);
+  for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {
+    const mx = Math.min(maschera.w - 1, Math.floor((box.x + x) / kx)), my = Math.min(maschera.h - 1, Math.floor((box.y + y) / ky));
+    alfa[y * box.w + x] = maschera.data[my * maschera.w + mx] ? 255 : 0;
+  }
+  for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {           // sfumatura 3×3
+    let s = 0, n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < box.w && yy < box.h) { s += alfa[yy * box.w + xx]; n++; } }
+    im.data[(y * box.w + x) * 4 + 3] = s / n;
+  }
+  g.putImageData(im, 0, 0);
+  return { rit, box, box0, kx, ky, marg };
+}
+// riquadro dell'oggetto (con lo sfondo) come JPEG: è quello che va all'AI della profondità
+function ritaglioConSfondo(c, box, lato = 0) {
+  const k = lato ? Math.min(1, lato / Math.max(box.w, box.h)) : 1;
+  const t = document.createElement("canvas"); t.width = Math.round(box.w * k); t.height = Math.round(box.h * k);
+  t.getContext("2d").drawImage(c, box.x, box.y, box.w, box.h, 0, 0, t.width, t.height);
+  return new Promise(ok => t.toBlob(ok, "image/jpeg", 0.92));
+}
+// riconoscimento sul fotogramma intero, scegliendo il riquadro che combacia di più con l'oggetto
+function riconosci(c, box, marg) {
+  let nome = "oggetto", punteggio = null;
+  if (!detector) return { nome, punteggio };
+  try {
+    const r = detector.detect(c), boxV = { x: box.x + marg, y: box.y + marg, w: box.w - 2 * marg, h: box.h - 2 * marg };
+    let meglio = 0;
+    for (const d of r.detections || []) {
+      const b = d.boundingBox, cat = d.categories && d.categories[0]; if (!b || !cat) continue;
+      const ix = Math.max(0, Math.min(b.originX + b.width, boxV.x + boxV.w) - Math.max(b.originX, boxV.x));
+      const iy = Math.max(0, Math.min(b.originY + b.height, boxV.y + boxV.h) - Math.max(b.originY, boxV.y));
+      // quanta parte del nostro oggetto sta dentro il riquadro trovato, e il riquadro non deve essere enormemente più grande
+      const copre = ix * iy / Math.max(1, boxV.w * boxV.h), rapporto = (b.width * b.height) / Math.max(1, boxV.w * boxV.h);
+      const voto = copre > 0.6 && rapporto < 6 ? copre * cat.score / Math.max(1, Math.sqrt(rapporto)) : 0;
+      if (voto > meglio && cat.categoryName !== "person") { meglio = voto; nome = COCO_IT[cat.categoryName] || cat.categoryName; punteggio = cat.score; }
+    }
+  } catch (e) { log("riconoscimento: " + (e.message || e)); }
+  return { nome, punteggio };
+}
+// toglie la mano dalla maschera, ma solo quando la segmentazione l'ha presa insieme all'oggetto
+// (se l'oggetto sta davanti al palmo, togliere il palmo cancellerebbe l'oggetto: in quel caso non tocco nulla)
+function togliMano(m) {
+  if (!m || !ultimeViste.length) return m;
+  const disegna = conPalmo => {
+    const c = document.createElement("canvas"); c.width = m.w; c.height = m.h;
+    const g = c.getContext("2d"); g.fillStyle = g.strokeStyle = "#fff"; g.lineCap = g.lineJoin = "round";
+    for (const v of ultimeViste) {
+      const P = i => [v.f[i].x * m.w, v.f[i].y * m.h];
+      g.lineWidth = 0.22 * Math.hypot(P(0)[0] - P(9)[0], P(0)[1] - P(9)[1]);   // circa la larghezza di un dito
+      if (conPalmo) { g.beginPath(); for (const i of [0, 1, 5, 9, 13, 17]) g.lineTo(...P(i)); g.closePath(); g.fill(); g.stroke(); }
+      for (const dito of [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]]) {
+        g.beginPath(); g.moveTo(...P(dito[0])); for (const i of dito.slice(1)) g.lineTo(...P(i)); g.stroke();
+      }
+    }
+    return g.getImageData(0, 0, m.w, m.h).data;
+  };
+  // 1. la maschera copre le dita? se ne copre meno di metà, la mano non è stata presa insieme all'oggetto
+  const dita = disegna(false); let d = 0, dm = 0;
+  for (let i = 0; i < m.w * m.h; i++) if (dita[i * 4 + 3] > 127) { d++; if (m.data[i]) dm++; }
+  if (!d || dm / d < 0.5) return m;
+  // 2. tolgo palmo e dita; se resta troppo poco (oggetto davanti alla mano) tengo la maschera com'era
+  const mano = disegna(true), out = new Uint8Array(m.w * m.h); let n = 0;
+  for (let i = 0; i < out.length; i++) if (m.data[i] && mano[i * 4 + 3] < 128) { out[i] = 1; n++; }
+  return n >= m.area * 0.35 && n > 50 ? { w: m.w, h: m.h, data: out, area: n } : m;
+}
 async function elabora(R) {
   const t0 = performance.now();
   const conMaschera = R.fotogrammi.filter(f => f.maschera);
@@ -1583,43 +1739,8 @@ async function elabora(R) {
     const c = scelto.canvas; maschera = mascheraDaPoligono(c.width, c.height, R.poligono, R.punto);
     log("cattura: segmentazione non disponibile, uso il " + (R.poligono ? "cerchio" : "cerchio intorno al tocco"));
   }
-  const vw = scelto.canvas.width, vh = scelto.canvas.height;
-  // la maschera può avere una risoluzione diversa dal fotogramma: la riporto in pixel del fotogramma
-  const box0 = riquadro(maschera), kx = vw / maschera.w, ky = vh / maschera.h;
-  const marg = 0.06 * Math.max(box0.w * kx, box0.h * ky);
-  const box = { x: Math.max(0, Math.floor(box0.x * kx - marg)), y: Math.max(0, Math.floor(box0.y * ky - marg)) };
-  box.w = Math.min(vw - box.x, Math.ceil(box0.w * kx + 2 * marg)); box.h = Math.min(vh - box.y, Math.ceil(box0.h * ky + 2 * marg));
-  // ritaglio: colori del fotogramma + trasparenza dalla maschera, bordi ammorbiditi
-  const rit = document.createElement("canvas"); rit.width = box.w; rit.height = box.h;
-  const g = rit.getContext("2d"); g.drawImage(scelto.canvas, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
-  const im = g.getImageData(0, 0, box.w, box.h);
-  const alfa = new Float32Array(box.w * box.h);
-  for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {
-    const mx = Math.min(maschera.w - 1, Math.floor((box.x + x) / kx)), my = Math.min(maschera.h - 1, Math.floor((box.y + y) / ky));
-    alfa[y * box.w + x] = maschera.data[my * maschera.w + mx] ? 255 : 0;
-  }
-  for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {           // sfumatura 3×3
-    let s = 0, c = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < box.w && yy < box.h) { s += alfa[yy * box.w + xx]; c++; } }
-    im.data[(y * box.w + x) * 4 + 3] = s / c;
-  }
-  g.putImageData(im, 0, 0);
-  // riconoscimento sul fotogramma intero, scegliendo il riquadro che combacia di più con l'oggetto
-  let nome = "oggetto", punteggio = null;
-  if (detector) {
-    try {
-      const r = detector.detect(scelto.canvas), boxV = { x: box.x + marg, y: box.y + marg, w: box.w - 2 * marg, h: box.h - 2 * marg };
-      let meglio = 0;
-      for (const d of r.detections || []) {
-        const b = d.boundingBox, cat = d.categories && d.categories[0]; if (!b || !cat) continue;
-        const ix = Math.max(0, Math.min(b.originX + b.width, boxV.x + boxV.w) - Math.max(b.originX, boxV.x));
-        const iy = Math.max(0, Math.min(b.originY + b.height, boxV.y + boxV.h) - Math.max(b.originY, boxV.y));
-        // quanta parte del nostro oggetto sta dentro il riquadro trovato, e il riquadro non deve essere enormemente più grande
-        const copre = ix * iy / Math.max(1, boxV.w * boxV.h), rapporto = (b.width * b.height) / Math.max(1, boxV.w * boxV.h);
-        const voto = copre > 0.6 && rapporto < 6 ? copre * cat.score / Math.max(1, Math.sqrt(rapporto)) : 0;
-        if (voto > meglio) { meglio = voto; nome = COCO_IT[cat.categoryName] || cat.categoryName; punteggio = cat.score; }
-      }
-    } catch (e) { log("riconoscimento: " + (e.message || e)); }
-  }
+  const { rit, box, box0, kx, ky, marg } = ritaglia(scelto.canvas, maschera);
+  const { nome, punteggio } = riconosci(scelto.canvas, box, marg);
   // misure stimate: se si vedeva una mano, la sua larghezza fa da metro
   let cm = null;
   if (R.mano && R.mano > 10) {
@@ -1628,8 +1749,7 @@ async function elabora(R) {
   }
   // ritaglio pronto: lo salvo e lo mostro subito (piatto), poi la profondità
   const ritBlob = await new Promise(ok => rit.toBlob(ok, "image/png"));
-  const crop = await new Promise(ok => { const c = document.createElement("canvas"); c.width = box.w; c.height = box.h;
-    c.getContext("2d").drawImage(scelto.canvas, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h); c.toBlob(ok, "image/jpeg", 0.92); });
+  const crop = await ritaglioConSfondo(scelto.canvas, box);
   const thumb = (await ridimensiona(rit, 160, "image/png")).canvas.toDataURL("image/png");
   const rec = { id: Date.now(), nome, punteggio, img: ritBlob, crop, thumb, prof: null, alfa: null, cm, stabilita,
                 come: R.come, fotogrammi: R.fotogrammi.length, creato: new Date().toISOString() };
@@ -1643,6 +1763,166 @@ async function elabora(R) {
   try { await profonditaOggetto(rec, rit); mostraScheda(rec, "Pronto: è sul palmo. Inclina la mano per vederlo di lato.", true); }
   catch (e) { log("ERRORE AI oggetto: " + (e.message || e)); mostraScheda(rec, "Forma 3D non calcolata: l'oggetto resta piatto."); }
 }
+// ---------- cattura a giro: più viste mentre giri l'oggetto in mano (o giri intorno col telefono) ----------
+// "impronta" di una vista: forma (16×16 dentro il riquadro) e colori (4×4×4): serve a capire se il lato è nuovo
+function impronta(c, m) {
+  const b = riquadro(m); if (!b) return null;
+  const forma = new Uint8Array(256);
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const mx = Math.min(m.w - 1, Math.floor(b.x + (x + 0.5) * b.w / 16)), my = Math.min(m.h - 1, Math.floor(b.y + (y + 0.5) * b.h / 16));
+    forma[y * 16 + x] = m.data[my * m.w + mx];
+  }
+  const kx = c.width / m.w, ky = c.height / m.h, t = document.createElement("canvas"); t.width = t.height = 32;
+  const g = t.getContext("2d"); g.drawImage(c, b.x * kx, b.y * ky, b.w * kx, b.h * ky, 0, 0, 32, 32);
+  const d = g.getImageData(0, 0, 32, 32).data, colori = new Float32Array(64); let n = 0;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+    const mx = Math.min(m.w - 1, Math.floor(b.x + (x + 0.5) * b.w / 32)), my = Math.min(m.h - 1, Math.floor(b.y + (y + 0.5) * b.h / 32));
+    if (!m.data[my * m.w + mx]) continue;
+    const i = (y * 32 + x) * 4; colori[(d[i] >> 6) * 16 + (d[i + 1] >> 6) * 4 + (d[i + 2] >> 6)]++; n++;
+  }
+  if (n) for (let i = 0; i < 64; i++) colori[i] /= n;
+  return { forma, colori };
+}
+function differenzaImpronte(a, b) {
+  let i = 0, u = 0; for (let k = 0; k < 256; k++) { if (a.forma[k] && b.forma[k]) i++; if (a.forma[k] || b.forma[k]) u++; }
+  let l1 = 0; for (let k = 0; k < 64; k++) l1 += Math.abs(a.colori[k] - b.colori[k]);
+  return (1 - (u ? i / u : 1)) + 0.5 * l1 / 2;
+}
+async function raccoltaGiro(R) {
+  $("fineGiro").hidden = false;
+  const viste = []; let ultima = null, massimaNitidezza = 0, ultimaT = 0, perse = 0;
+  R.viste = viste;
+  while (cattura.attiva && !cattura.basta && viste.length < GIRO_MAX_VISTE && performance.now() - R.t0 < GIRO_MAX_MS) {
+    const f = fotogramma();
+    let m = segmenter ? togliMano(segmenta(f.canvas, R.punto)) : null;
+    if (m) m = pulisciMaschera(m, R.punto, viste.length ? null : R.poligono);   // il cerchio vale solo all'inizio
+    if (m) {
+      perse = 0;
+      const c = centroMaschera(m); if (c) R.punto = c;                         // il punto segue l'oggetto
+      const imp = impronta(f.canvas, m), b = riquadro(m), nit = b ? nitidezza(f.canvas, b) : 0;
+      massimaNitidezza = Math.max(massimaNitidezza, nit);
+      const nuova = !ultima || differenzaImpronte(imp, ultima) > GIRO_NOVITA;
+      if (nuova && nit >= massimaNitidezza * 0.45 && performance.now() - ultimaT > 300) {
+        const { rit, box, marg } = ritaglia(f.canvas, m);
+        const v = { rit, crop: await ritaglioConSfondo(f.canvas, box, GIRO_LATO) };
+        if (!viste.length) Object.assign(R, { primo: f.canvas, box, marg, box0: riquadro(m), kx: f.canvas.width / m.w, ky: f.canvas.height / m.h });
+        viste.push(v); ultima = imp; ultimaT = performance.now();
+        feedback("scatto");
+      }
+    } else if (++perse > 15 && viste.length) bannerCattura(`Ho perso l'oggetto: rimettilo nell'inquadratura · viste ${viste.length}`);
+    f.maschera = m; disegnaRaccolta(f, (performance.now() - R.t0) / GIRO_MAX_MS);
+    if (m || !viste.length) bannerCattura(viste.length
+      ? `Viste ${viste.length} di ${GIRO_MAX_VISTE} · gira l'oggetto piano, o giraci intorno. Premi Fine quando hai fatto il giro.`
+      : "Tieni l'oggetto nell'inquadratura: prendo la prima vista…");
+    await new Promise(r => setTimeout(r, 120));
+  }
+  $("fineGiro").hidden = true;
+  if (!cattura.attiva) return;
+  if (!viste.length) { fineCattura("Nessuna vista presa: riprova con più luce"); return; }
+  cattura.fase = "elaboro"; bannerCattura(`Elaboro ${viste.length} viste…`);
+  try { await elaboraGiro(R); }
+  catch (e) { log("ERRORE cattura a giro: " + (e.message || e)); fineCattura("Cattura non riuscita: riprova"); }
+}
+async function elaboraGiro(R) {
+  const viste = R.viste;
+  const { nome, punteggio } = riconosci(R.primo, R.box, R.marg);
+  let cm = null;
+  if (R.mano && R.mano > 10) { const k = PALMO_CM / R.mano; cm = { w: Math.round(R.box0.w * R.kx * k), h: Math.round(R.box0.h * R.ky * k) }; }
+  const salvate = [];
+  for (const v of viste) {
+    const piccola = await ridimensiona(v.rit, GIRO_LATO, "image/png");
+    salvate.push({ img: piccola.blob, crop: v.crop, prof: null, alfa: null });
+  }
+  const thumb = (await ridimensiona(viste[0].rit, 160, "image/png")).canvas.toDataURL("image/png");
+  const rec = { id: Date.now(), nome, punteggio, img: salvate[0].img, crop: salvate[0].crop, thumb, prof: null, alfa: null, cm,
+                stabilita: null, come: R.come, fotogrammi: viste.length, viste: salvate, creato: new Date().toISOString() };
+  log(`cattura a giro: ${viste.length} viste in ${((performance.now() - R.t0) / 1000).toFixed(1)} s, ${nome}${cm ? `, circa ${cm.w}×${cm.h} cm` : ""}`);
+  fineCattura();
+  oggettoCorrente = rec.id;
+  await mostraGiro(rec);
+  mostraOggettoComeSoggetto(rec);
+  mostraScheda(rec, `${viste.length} viste. Calcolo la forma 3D di ogni vista…`);
+  await salvaOggetto(rec);
+  await profonditaViste(rec);
+}
+// canvas di ogni vista salvata
+async function canvasViste(rec) {
+  const out = [];
+  for (const v of rec.viste) {
+    const b = await bitmapDa(v.img), c = document.createElement("canvas"); c.width = b.width; c.height = b.height;
+    c.getContext("2d").drawImage(b, 0, 0); if (b.close) b.close(); out.push(c);
+  }
+  return out;
+}
+async function mostraGiro(rec) {
+  const cs = await canvasViste(rec);
+  if (window.mostraOggettoGiro) window.mostraOggettoGiro(cs.map((c, i) => ({ canvas: c, prof: rec.viste[i].prof, alfa: rec.viste[i].alfa })));
+  return cs;
+}
+// profondità di tutte le viste, una alla volta (la prima è anche quella del .glb)
+async function profonditaViste(rec) {
+  const cs = await canvasViste(rec); let fatte = 0, errori = 0;
+  for (let i = 0; i < rec.viste.length; i++) {
+    const v = rec.viste[i];
+    if (v.prof) { fatte++; continue; }
+    try {
+      const bmp = await bitmapDa(v.crop);
+      const { blob } = await ridimensiona(bmp, AI_LATO, "image/jpeg", 0.92); if (bmp.close) bmp.close();
+      const r = await calcolaProfondita(blob);
+      const c = document.createElement("canvas"); c.width = r.w; c.height = r.h;
+      c.getContext("2d").drawImage(cs[i], 0, 0, r.w, r.h);
+      const d = c.getContext("2d").getImageData(0, 0, r.w, r.h).data, a = new Uint8Array(r.w * r.h);
+      for (let k = 0; k < a.length; k++) a[k] = d[k * 4 + 3];
+      v.prof = { w: r.w, h: r.h, data: r.data }; v.alfa = { w: r.w, h: r.h, data: a };
+      if (i === 0) { rec.prof = v.prof; rec.alfa = v.alfa; }
+      if (oggettoCorrente === rec.id && window.aggiornaVista) window.aggiornaVista(i, cs[i], v.prof, v.alfa);
+      fatte++;
+    } catch (e) { errori++; log(`ERRORE AI vista ${i + 1}: ` + (e.message || e)); }
+    if ($("scheda").dataset.id == rec.id && !$("scheda").hidden) $("schedaStato").textContent = `Forma 3D: ${fatte} viste su ${rec.viste.length}…`;
+    if (i % 4 === 3) await salvaOggetto(rec);
+  }
+  await salvaOggetto(rec);
+  log(`profondità a giro: ${fatte} viste su ${rec.viste.length}${errori ? `, ${errori} errori` : ""}`);
+  if ($("scheda").dataset.id == rec.id) mostraScheda(rec, fatte ? "Pronto: gira da solo sul palmo. Ruota il polso o due dita per scegliere il lato." : "Forma 3D non calcolata: le viste restano piatte.", fatte > 0);
+  feedback("comparsa");
+}
+
+// ---------- ZIP senza compressione (per scaricare le viste) ----------
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+async function creaZip(file) {
+  const enc = new TextEncoder(), parti = [], centrale = []; let pos = 0;
+  for (const f of file) {
+    const nome = enc.encode(f.nome), dati = new Uint8Array(await f.blob.arrayBuffer()), crc = crc32(dati);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint32(14, crc, true); h.setUint32(18, dati.length, true); h.setUint32(22, dati.length, true); h.setUint16(26, nome.length, true);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint32(16, crc, true); c.setUint32(20, dati.length, true); c.setUint32(24, dati.length, true); c.setUint16(28, nome.length, true); c.setUint32(42, pos, true);
+    parti.push(h, nome, dati); centrale.push(c, nome);
+    pos += 30 + nome.length + dati.length;
+  }
+  const dimC = centrale.reduce((s, x) => s + x.byteLength, 0), fine = new DataView(new ArrayBuffer(22));
+  fine.setUint32(0, 0x06054b50, true); fine.setUint16(8, file.length, true); fine.setUint16(10, file.length, true);
+  fine.setUint32(12, dimC, true); fine.setUint32(16, pos, true);
+  return new Blob([...parti, ...centrale, fine], { type: "application/zip" });
+}
+$("schedaZip").addEventListener("click", async () => {
+  const r = recScheda(); if (!r || !r.viste) return;
+  const due = n => String(n).padStart(2, "0"), file = [];
+  r.viste.forEach((v, i) => { file.push({ nome: `ritagli/vista-${due(i + 1)}.png`, blob: v.img }, { nome: `foto/vista-${due(i + 1)}.jpg`, blob: v.crop }); });
+  file.push({ nome: "leggimi.txt", blob: new Blob([`Aura · ${r.nome} · ${r.viste.length} viste catturate il ${new Date(r.id).toLocaleString("it-IT")}
+${r.cm ? `Misure indicative: circa ${r.cm.w} × ${r.cm.h} cm\n` : ""}
+ritagli/  viste con lo sfondo trasparente (la mano è tolta): per le AI che ricostruiscono il 3D da più immagini.
+foto/     le stesse viste con lo sfondo: per i programmi di fotogrammetria.
+Per un modello preciso servono viste di tutti i lati, nitide e con luce uniforme.
+`], { type: "text/plain" }) });
+  avviso("Preparo lo zip…", 2000);
+  try { scarica(await creaZip(file), nomeFile(r) + "-viste.zip"); log(`zip delle viste: ${r.viste.length} viste`); }
+  catch (e) { log("ERRORE zip: " + (e.message || e)); avviso("Zip non riuscito"); }
+});
+
 async function profonditaOggetto(rec, rit) {
   // all'AI va il riquadro con lo sfondo (il contesto aiuta a capire la profondità); poi tengo solo l'oggetto
   const bmp = await bitmapDa(rec.crop);
@@ -1680,15 +1960,17 @@ function mostraScheda(rec, stato, ok) {
   righe.push(rec.punteggio ? `Riconosciuto al ${Math.round(rec.punteggio * 100)}% (categoria generica)` : "Non riconosciuto: categoria da indicare");
   righe.push(rec.cm ? `Misure indicative: circa ${rec.cm.w} × ${rec.cm.h} cm (stimate con la tua mano)` : "Misure: tieni la mano aperta vicino all'oggetto durante la cattura per stimarle");
   if (rec.stabilita != null) righe.push(`Stabilità della cattura: ${Math.round(rec.stabilita * 100)}% su ${rec.fotogrammi} fotogrammi`);
+  if (rec.viste) righe.push(`Cattura a giro: ${rec.viste.length} viste (gira a 360° sul palmo)`);
   $("schedaDett").innerHTML = righe.map(r => r.replace(/&/g, "&amp;").replace(/</g, "&lt;")).join("<br>");
   $("schedaStato").textContent = stato || ""; $("schedaStato").className = "stato" + (ok ? " ok" : "");
   $("schedaGlb").disabled = !rec.prof;
+  $("schedaZip").hidden = !(rec.viste && rec.viste.length > 1);
   $("scheda").hidden = false;
   $("scheda").dataset.id = rec.id;
 }
 const recScheda = () => oggetti.find(o => o.id === +$("scheda").dataset.id);
 $("schedaMostra").addEventListener("click", () => { $("scheda").hidden = true; if (!scena.visibile) avviso("Apri il palmo", 2000); });
-$("schedaRifai").addEventListener("click", () => { $("scheda").hidden = true; iniziaCattura(); });
+$("schedaRifai").addEventListener("click", () => { const r = recScheda(); $("scheda").hidden = true; iniziaCattura(r && r.viste ? "giro" : "veloce"); });
 function scarica(blob, nome) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome;
   document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
@@ -1739,10 +2021,19 @@ function disegnaOggetti() {
     x.addEventListener("click", async () => { await archivio.togliOggetto(r.id).catch(() => {}); oggetti = oggetti.filter(o => o.id !== r.id); disegnaOggetti(); avviso("Oggetto tolto"); });
     d.append(b, x);
     if (!r.prof) { const s = document.createElement("span"); s.className = "senza"; s.textContent = "piatto"; d.append(s); }
+    if (r.viste) { const s = document.createElement("span"); s.className = "giro"; s.textContent = "360°"; d.append(s); }
     el.append(d);
   }
 }
 async function apriOggetto(id, conScheda) {
+  const g = oggetti.find(o => o.id === id);
+  if (g && g.viste) {                                   // oggetto a giro
+    oggettoCorrente = g.id; await mostraGiro(g);
+    mostraOggettoComeSoggetto(g); disegnaOggetti();
+    if (conScheda) { apriMenu(false); mostraScheda(g, "Sul palmo: gira da solo. Ruota il polso o due dita per scegliere il lato.", true); }
+    if (g.viste.some(v => !v.prof)) profonditaViste(g).catch(e => log("ERRORE AI viste: " + (e.message || e)));
+    return;
+  }
   const rec = oggetti.find(o => o.id === id); if (!rec || !window.mostraOggetto) return;
   const bmp = await bitmapDa(rec.img), c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
   c.getContext("2d").drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
@@ -1850,10 +2141,13 @@ $("fileModello").addEventListener("change", async e => {
 });
 
 function testoFlip() { $("flip").textContent = facing === "environment" ? "Passa alla fotocamera frontale" : "Passa alla fotocamera posteriore"; }
-$("flip").addEventListener("click", async () => {
-  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); testoFlip(); }
+async function cambiaFotocamera() {
+  if (cattura.attiva && cattura.fase !== "scegli") { avviso("Aspetta la fine della cattura"); return; }
+  try { await openCamera({ facingMode: facing === "user" ? "environment" : "user" }); resetFps(); testoFlip(); avviso(facing === "user" ? "Fotocamera frontale" : "Fotocamera posteriore", 1200); }
   catch (e) { log("ERRORE cambio fotocamera: " + e.name + " · " + e.message); }
-});
+}
+$("flip").addEventListener("click", cambiaFotocamera);
+$("giraCam").addEventListener("click", cambiaFotocamera);
 $("reset").addEventListener("click", () => { scena.zoomUtente = 1; scena.spin = 0; scena.inclina0 = null; avviso("Terra a 1×"); apriMenu(false); });
 $("zero").addEventListener("click", () => { pinch.conta = 0; $("pinchN").textContent = "0"; log("contatore pinch azzerato"); avviso("Pinch: 0"); });
 
