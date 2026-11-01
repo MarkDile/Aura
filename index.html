@@ -111,6 +111,14 @@
     pointer-events: none; opacity: 0; transition: opacity .2s; white-space: nowrap; }
   #avviso.on { opacity: 1; }
 
+  /* modalità visore (azione 30): il vetro riflette lo schermo al contrario, quindi lo specchiamo noi */
+  html.visore.specchio #three { transform: scaleX(-1); }
+  html.visore.specchio #etichetta { transform: translate(-50%, -100%) scaleX(-1); }
+  html.visore.specchio #avviso { transform: translateX(-50%) scaleX(-1); }
+  html.visore #canvas { visibility: hidden; }
+  html.visore #giraCam, html.visore #dati, html.visore #log { display: none !important; }
+  html.visore #menuBtn:not(:focus) { opacity: .18; }
+
   /* Oggetti 3D: cattura */
   #traccia { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
   #banner { position: fixed; z-index: 5; left: 66px; right: 10px; top: calc(12px + env(safe-area-inset-top));
@@ -227,7 +235,7 @@
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 22 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 23 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -253,6 +261,12 @@
   <div class="riga"><span>Rilievo nel giro<small>spento = foto vere, più realistiche; acceso = un leggero rilievo AI</small></span><button class="sw" id="optGiroRilievo" aria-pressed="false" aria-label="Rilievo nel giro"></button></div>
   <p class="nota">Cerchia l'oggetto con un dito sullo schermo (o toccalo), oppure puntalo con l'indice e tieni fermo 1 secondo.<br><b>Veloce</b>: 2 secondi, una vista in rilievo.<br><b>A giro</b>: prendi l'oggetto in mano e giralo piano (oppure giraci intorno col telefono): ogni volta che si vede un lato nuovo la pagina memorizza una vista, fino a 36. La tua mano viene tolta dal ritaglio. Poi l'oggetto gira a 360° sul palmo: le viste si dissolvono una nell'altra, tutte alla stessa misura. Per tornare al punto di partenza gira l'oggetto di un giro intero. Puoi scaricare le viste per un modello 3D completo.<br><b>Nella scheda</b>: «Descrivi e leggi le scritte» (AI nel telefono), «Misura con carta o A4» (metti una carta formato tessera o un foglio A4 vicino all'oggetto durante la cattura), «Crea dalle misure» (scatola, cilindro o telaio con le misure vere) e «Collega un 3D fatto da un'AI».</p>
   <div class="album" id="oggetti"><div class="vuoto">Ancora nessun oggetto.</div></div>
+
+  <h3>Visore</h3>
+  <button class="azione evidenza" id="visoreBtn">Entra in modalità visore</button>
+  <div class="riga"><span>Specchia l'immagine<small>il vetro riflette al contrario: così la vedi dritta</small></span><button class="sw" id="optSpecchio" aria-pressed="true" aria-label="Specchia l'immagine"></button></div>
+  <p class="nota">Telefono sdraiato sotto il vetro, in orizzontale, con il lato alto dello schermo (dove c'è ☰) verso di te. In visore: solo il soggetto su nero, schermo sempre acceso, pulsanti quasi invisibili, la Terra compare da sola al centro. La luminosità alzala tu al massimo (la pagina non può farlo). Per uscire: ☰ in alto a sinistra.</p>
+  <p class="nota" id="visoreInfo"></p>
 
   <h3>Sfondo</h3>
   <div class="seg tre" id="sfondo">
@@ -336,6 +350,8 @@
 
 <script type="module">
 const $ = id => document.getElementById(id);
+// in modalità visore con lo specchio, il tocco va ribaltato come l'immagine
+const vx = x => (document.documentElement.classList.contains("visore") && document.documentElement.classList.contains("specchio")) ? innerWidth - x : x;
 const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
 const info = $("info"), startBtn = $("start");
 const log = window.log;
@@ -978,7 +994,7 @@ async function caricaScena3D() {
     if (sistema.visible && attivo === "terra") {
       luna.getWorldPosition(vLuna);
       scena.luna = { x: vLuna.x, y: vLuna.y, z: vLuna.z - sistema.position.z, r: 0.27 * s };
-      etichetta.style.left = vLuna.x + "px"; etichetta.style.top = (vLuna.y - 0.27 * s - 8) + "px";
+      etichetta.style.left = (document.documentElement.classList.contains("specchio") && document.documentElement.classList.contains("visore") ? innerWidth - vLuna.x : vLuna.x) + "px"; etichetta.style.top = (vLuna.y - 0.27 * s - 8) + "px";
     } else scena.luna = null;
     if (etichetta.classList.contains("on") && (performance.now() > lunaFinoA || !sistema.visible)) etichetta.classList.remove("on");
     // alone del pinch
@@ -2745,15 +2761,15 @@ function lasciaSulloSchermo() {
 }
 zona.addEventListener("pointerdown", e => {
   if (cattura.attiva) { try { zona.setPointerCapture(e.pointerId); } catch (err) {} catturaTocco("down", e); return; }
-  tocco.suTerra = tocco.punti.size === 0 && scena.visibile && scena.pos && dist({ x: e.clientX, y: e.clientY }, scena.pos) < scena.r * scena.zoomUtente * 1.5;
+  tocco.suTerra = tocco.punti.size === 0 && scena.visibile && scena.pos && dist({ x: vx(e.clientX), y: e.clientY }, scena.pos) < scena.r * scena.zoomUtente * 1.5;
   try { zona.setPointerCapture(e.pointerId); } catch (err) {}
-  tocco.punti.set(e.pointerId, { x: e.clientX, y: e.clientY, t0: performance.now(), x0: e.clientX, y0: e.clientY });
+  tocco.punti.set(e.pointerId, { x: vx(e.clientX), y: e.clientY, t0: performance.now(), x0: vx(e.clientX), y0: e.clientY });
   iniziaGesto();
 });
 zona.addEventListener("pointermove", e => {
   if (cattura.attiva) { catturaTocco("move", e); return; }
   const q = tocco.punti.get(e.pointerId); if (!q) return;
-  q.x = e.clientX; q.y = e.clientY;
+  q.x = vx(e.clientX); q.y = e.clientY;
   const g = tocco.attivo, p = puntiTocco();
   if (!g) return;
   if (g.tipo === "uno" && p.length === 1) {
@@ -2798,6 +2814,58 @@ function doppioTocco(q) {
     scena.zoomUtente = 1; scena.spin = 0; avviso("Terra a 1×"); feedback("ritorno"); log("doppio tocco: Terra a 1×");
   }
 }
+
+// ---------------- modalità visore (azione 30) ----------------
+// Il telefono sta sdraiato sotto il vetro a 45°: sfondo nero, immagine specchiata (il vetro la ribalta),
+// schermo sempre acceso, schermo intero e orizzontale bloccato dove il telefono lo permette (Android).
+// Niente doppia immagine stereo: con un solo vetro i due occhi vedono lo stesso schermo; servirà con il visore della fase 1.
+const visore = { on: false, sfondoPrima: null, lock: null };
+const radice = document.documentElement;
+function mostraSpecchio() {
+  const on = PREF.specchio !== false;
+  radice.classList.toggle("specchio", on);
+  $("optSpecchio").setAttribute("aria-pressed", String(on));
+}
+mostraSpecchio();
+$("optSpecchio").addEventListener("click", () => {
+  PREF.specchio = PREF.specchio === false; salvaPref(); mostraSpecchio();
+  log("specchio: " + (PREF.specchio !== false ? "sì" : "no"));
+});
+async function tieniAcceso() {
+  try { if ("wakeLock" in navigator && !visore.lock) { visore.lock = await navigator.wakeLock.request("screen"); visore.lock.addEventListener("release", () => { visore.lock = null; }); } }
+  catch (e) { log("schermo sempre acceso non disponibile: " + e.message); }
+}
+async function entraVisore() {
+  visore.on = true; radice.classList.add("visore");
+  visore.sfondoPrima = PREF.sfondo || "video"; mettiSfondo("nero");
+  $("visoreBtn").textContent = "Esci dalla modalità visore";
+  chiudiMenuVisore();
+  const note = [];
+  try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: "hide" }); }
+  catch (e) { note.push("schermo intero no"); }
+  try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape"); }
+  catch (e) { note.push("blocca tu la rotazione in orizzontale"); }
+  await tieniAcceso();
+  if (!visore.lock) note.push("schermo sempre acceso no");
+  $("visoreInfo").textContent = note.length ? "Su questo telefono: " + note.join(" · ") + "." : "";
+  if (!scena.visibile) doppioTocco({ x: innerWidth / 2, y: innerHeight / 2 });
+  else { scena.modo = "libera"; scena.armato = false; scena.pos = { x: innerWidth / 2, y: innerHeight / 2 }; scena.target = { ...scena.pos }; }
+  avviso("Visore: luminosità al massimo", 2500);
+  log("visore: acceso" + (note.length ? " (" + note.join(", ") + ")" : ""));
+}
+async function esciVisore() {
+  visore.on = false; radice.classList.remove("visore");
+  mettiSfondo(visore.sfondoPrima || PREF.sfondo || "video");
+  $("visoreBtn").textContent = "Entra in modalità visore";
+  try { if (visore.lock) await visore.lock.release(); } catch (e) {}
+  visore.lock = null;
+  try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+  try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (e) {}
+  log("visore: spento");
+}
+function chiudiMenuVisore() { apriMenu(false); }
+$("visoreBtn").addEventListener("click", () => visore.on ? esciVisore() : entraVisore());
+document.addEventListener("visibilitychange", () => { if (!document.hidden && visore.on) tieniAcceso(); });
 
 window.addEventListener("pagehide", () => { if (stream) stream.getTracks().forEach(t => t.stop()); });
 
