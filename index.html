@@ -121,7 +121,7 @@
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 16 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 17 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -553,9 +553,7 @@ async function caricaScena3D() {
   const profMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });   // vista "Profondità" in grigi
   let fotoGeo = new THREE.PlaneGeometry(1, 1);
   const fotoPiano = new THREE.Mesh(fotoGeo, fotoMat);
-  const fotoBordo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xf4f4f0, side: THREE.DoubleSide }));
-  fotoBordo.position.z = -0.02;
-  foto.add(fotoBordo, fotoPiano);
+  foto.add(fotoPiano);                  // senza bordo: solo la foto
   let fotoBase = null;                  // profondità di ogni vertice, da 0 (lontano) a 1 (vicino)
   let vistaProf = false;
   const textura = c => {
@@ -594,11 +592,9 @@ async function caricaScena3D() {
     if (profMat.map) { profMat.map.dispose(); profMat.map = null; }
     if (prof) { profMat.map = textura(canvasProfondita(prof)); profMat.needsUpdate = true; }
     window.vistaFoto(vistaProf ? "profondita" : "foto");
-    // il lato lungo misura come il diametro della Terra (2), con un bordo bianco del 4%
+    // il lato lungo misura come il diametro della Terra (2)
     const w = a >= 1 ? 2 : 2 * a, h = a >= 1 ? 2 / a : 2;
     fotoPiano.scale.set(w, h, 1);
-    const b = 0.04 * Math.max(w, h);
-    fotoBordo.scale.set(w + 2 * b, h + 2 * b, 1);
   };
   for (const [nome, obj] of [["marte", marte], ["saturno", saturno], ["cubo", cubo], ["modello", modello], ["foto", foto]]) {
     obj.visible = false; sistema.add(obj); soggetti[nome] = [obj];
