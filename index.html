@@ -102,6 +102,30 @@
     background: rgba(0,0,0,.7); color: #fff; border-radius: 999px; padding: 8px 16px; font: 600 15px system-ui, sans-serif;
     pointer-events: none; opacity: 0; transition: opacity .2s; white-space: nowrap; }
   #avviso.on { opacity: 1; }
+
+  /* Oggetti 3D: cattura */
+  #traccia { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+  #banner { position: fixed; z-index: 5; left: 66px; right: 10px; top: calc(12px + env(safe-area-inset-top));
+    background: rgba(8,14,20,.86); color: #fff; border: 1px solid rgba(57,208,255,.5); border-radius: 12px;
+    padding: 10px 12px; font: 500 14px/1.4 system-ui, sans-serif; display: flex; gap: 10px; align-items: center; }
+  #banner[hidden] { display: none; }
+  #banner span { flex: 1; min-width: 0; }
+  #banner button { border: 0; border-radius: 8px; padding: 8px 12px; background: #3a4450; color: #fff; font-weight: 600; flex: none; }
+  #scheda { position: fixed; z-index: 6; left: 0; right: 0; bottom: 0; max-height: 78vh; overflow-y: auto;
+    background: rgba(12,16,20,.97); color: #eef; border-radius: 16px 16px 0 0; box-sizing: border-box;
+    padding: 14px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  #scheda[hidden] { display: none; }
+  #scheda .testa { display: flex; gap: 12px; align-items: center; }
+  #scheda .anteprima { width: 96px; height: 96px; flex: none; border-radius: 10px; object-fit: contain;
+    background: repeating-conic-gradient(#2a323b 0 25%, #1d242b 0 50%) 0 0 / 16px 16px; }
+  #scheda h4 { margin: 0 0 4px; font-size: 18px; }
+  #scheda .dett { color: #a9b6c2; font-size: 13px; line-height: 1.45; }
+  #scheda .stato { margin: 10px 0 4px; font-size: 14px; color: #ffd84f; }
+  #scheda .stato.ok { color: #7be0a0; }
+  #scheda .bottoni { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+  #scheda .bottoni button { border: 0; border-radius: 10px; padding: 11px 8px; background: #222a33; color: #eef; font-size: 14px; font-weight: 600; }
+  #scheda .bottoni button.primario { background: #39d0ff; color: #001018; grid-column: 1 / -1; }
+  #scheda .bottoni button:disabled { opacity: .45; }
 </style>
 </head>
 <body>
@@ -113,6 +137,22 @@
 
 <div id="etichetta">Luna · 384.400 km</div>
 <div id="avviso"></div>
+<canvas id="traccia"></canvas>
+<div id="banner" hidden><span id="bannerTesto"></span><button id="annullaCattura">Annulla</button></div>
+<div id="scheda" hidden aria-live="polite">
+  <div class="testa">
+    <img class="anteprima" id="schedaImg" alt="Oggetto ritagliato">
+    <div><h4 id="schedaNome">Oggetto</h4><div class="dett" id="schedaDett"></div></div>
+  </div>
+  <div class="stato" id="schedaStato"></div>
+  <div class="bottoni">
+    <button class="primario" id="schedaMostra">Mostra sul palmo</button>
+    <button id="schedaGlb">Scarica il 3D (.glb)</button>
+    <button id="schedaPng">Scarica il ritaglio (.png)</button>
+    <button id="schedaClaude">Copia la richiesta per Claude</button>
+    <button id="schedaRifai">Rifai la cattura</button>
+  </div>
+</div>
 <button id="start">Apri la fotocamera</button>
 
 <button id="menuBtn" aria-label="Menu" aria-expanded="false">
@@ -121,7 +161,7 @@
 <div id="velo" hidden></div>
 <nav id="menu" aria-label="Impostazioni">
   <h2>AURA</h2>
-  <div id="ver">versione 17 · <span id="clock">0</span> s</div>
+  <div id="ver">versione 18 · <span id="clock">0</span> s</div>
 
   <h3>Schermo</h3>
   <div class="riga"><span>Scheletro della mano<small>i 21 punti azzurri</small></span><button class="sw" id="optSkel" aria-pressed="false" aria-label="Scheletro della mano"></button></div>
@@ -141,6 +181,11 @@
   <div class="album" id="album"><div class="vuoto">Ancora nessuna foto.</div></div>
   <p class="nota">Fino a 10 foto, salvate solo su questo telefono con la loro profondità: si riaprono subito. Per sfogliarle: swipe sullo schermo, oppure mano aperta mossa veloce verso destra o sinistra.</p>
 
+  <h3>Oggetti 3D</h3>
+  <button class="azione evidenza" id="catturaOggetto">Cattura un oggetto dalla fotocamera…</button>
+  <p class="nota">Cerchia l'oggetto con un dito sullo schermo (o toccalo), oppure puntalo con l'indice e tieni fermo 1 secondo. Per 2 secondi la pagina lo osserva, sceglie il fotogramma più nitido, lo ritaglia, prova a riconoscerlo e lo trasforma in un oggetto 3D in rilievo.</p>
+  <div class="album" id="oggetti"><div class="vuoto">Ancora nessun oggetto.</div></div>
+
   <h3>Sfondo</h3>
   <div class="seg tre" id="sfondo">
     <button data-v="video">Fotocamera</button><button data-v="scuro">Scuro</button><button data-v="nero">Nero</button>
@@ -155,6 +200,7 @@
     <button data-v="cubo">Cubo olografico<small>linee luminose</small></button>
     <button data-v="modello" id="soggModello" hidden>Il tuo modello<small id="nomeModello">.glb</small></button>
     <button data-v="foto" id="soggFoto" hidden>La tua foto<small id="nomeFoto">foto</small></button>
+    <button data-v="oggetto" id="soggOggetto" hidden>Il tuo oggetto<small id="nomeOggetto">oggetto</small></button>
   </div>
   <button class="azione" id="caricaModello">Carica un modello 3D (.glb)…</button>
   <input type="file" id="fileModello" accept=".glb,model/gltf-binary">
@@ -185,6 +231,7 @@
     <li><b>Palmo aperto sotto la Terra</b> per 1 secondo: torna sul palmo.</li>
     <li><b>Schermo</b>: un dito la trascina, due dita la ingrandiscono e la ruotano, doppio tocco la fa comparire o la rimette a 1×.</li>
     <li><b>Foto 3D</b>: inclina la mano per guardarla di lato; swipe o mano aperta veloce per cambiare foto.</li>
+    <li><b>Cattura oggetto</b>: cerchialo con un dito, oppure puntalo con l'indice (medio, anulare e mignolo chiusi) e tieni fermo 1 secondo.</li>
   </ul>
 </nav>
 
@@ -269,6 +316,15 @@ const ALBUM_MAX = 10;
 const SWIPE_MANO = 0.28;       // swipe con la mano: spostamento di almeno il 28% della larghezza in 0,3 s
 const AI_MODELLO = "onnx-community/depth-anything-v2-small";
 const AI_VERSIONI = ["3.0.2", "3.0.0"];   // @huggingface/transformers (transformers.js)
+// Oggetti 3D (cattura dalla fotocamera)
+const SEG_MODELLO = "https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite";
+const DET_MODELLO = "https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite";
+const CATTURA_MS = 2000;       // per quanto osserva l'oggetto
+const PUNTA_MS = 1000;         // indice fermo per 1 s = oggetto scelto
+const PALMO_CM = 8;            // distanza tipica tra le nocche di indice e mignolo di un adulto (per stimare le misure)
+const RILIEVO_OGGETTO = 0.55;  // spessore del davanti dell'oggetto (la larghezza è 2)
+const RUOTA_OGGETTO = 0.8;     // l'oggetto si può girare fino a 45° per lato
+const OGGETTI_MAX = 20;
 // ==========================================================================
 
 let stream = null, facing = null, landmarker = null, mp = null, files = null, draw = null;
@@ -596,7 +652,43 @@ async function caricaScena3D() {
     const w = a >= 1 ? 2 : 2 * a, h = a >= 1 ? 2 / a : 2;
     fotoPiano.scale.set(w, h, 1);
   };
-  for (const [nome, obj] of [["marte", marte], ["saturno", saturno], ["cubo", cubo], ["modello", modello], ["foto", foto]]) {
+  // ---------- Oggetto catturato (Oggetti 3D): ritaglio con trasparenza + profondità ----------
+  // Davanti in rilievo, dietro lo stesso rilievo all'indietro: un guscio chiuso che si può girare un po' di lato.
+  const oggetto = new THREE.Group();
+  const oggMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, alphaTest: 0.5 });
+  const oggDavanti = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), oggMat);
+  const oggDietro = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), oggMat);
+  oggetto.add(oggDavanti, oggDietro);
+  window.mostraOggetto = (c, prof, alfa) => {
+    // c: ritaglio RGBA · prof: profondità {w,h,data} · alfa: maschera {w,h,data} alla misura della profondità
+    if (oggMat.map) oggMat.map.dispose();
+    oggMat.map = textura(c); oggMat.needsUpdate = true;
+    const a = c.width / c.height, lungo = prof ? 160 : 1;
+    const sx = a >= 1 ? lungo : Math.max(1, Math.round(lungo * a)), sy = a >= 1 ? Math.max(1, Math.round(lungo / a)) : lungo;
+    for (const [m, verso] of [[oggDavanti, 1], [oggDietro, -0.75]]) {
+      m.geometry.dispose();
+      m.geometry = new THREE.PlaneGeometry(1, 1, sx, sy);
+      if (prof) {
+        const base = campionaProfondita(normalizzaProfondita(prof, alfa), m.geometry.attributes.uv);
+        const pos = m.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) pos.setZ(i, verso * (0.04 + base[i]) * RILIEVO_OGGETTO);
+        pos.needsUpdate = true;
+      }
+    }
+    const w = a >= 1 ? 2 : 2 * a, h = a >= 1 ? 2 / a : 2;
+    oggDavanti.scale.set(w, h, 1); oggDietro.scale.set(w, h, 1);
+  };
+  // esporta l'oggetto in .glb (asse y in su, come vogliono i visualizzatori 3D)
+  window.esportaGlb = async () => {
+    const { GLTFExporter } = await import("three/addons/exporters/GLTFExporter.js");
+    const radice = new THREE.Group(); radice.rotation.x = Math.PI;      // da "y in giù" (schermo) a "y in su"
+    const copia = new THREE.Group();
+    for (const m of [oggDavanti, oggDietro]) { const c = new THREE.Mesh(m.geometry, oggMat); c.scale.copy(m.scale); copia.add(c); }
+    copia.scale.setScalar(0.05);                                        // 2 unità → 10 cm circa: misura comoda nei visualizzatori
+    radice.add(copia);
+    return await new GLTFExporter().parseAsync(radice, { binary: true });
+  };
+  for (const [nome, obj] of [["marte", marte], ["saturno", saturno], ["cubo", cubo], ["modello", modello], ["foto", foto], ["oggetto", oggetto]]) {
     obj.visible = false; sistema.add(obj); soggetti[nome] = [obj];
   }
   let attivo = "terra", girevole = terra;
@@ -604,7 +696,7 @@ async function caricaScena3D() {
     if (!soggetti[nome]) nome = "terra";
     attivo = nome; soggettoAttivo = nome;
     for (const k in soggetti) for (const o of soggetti[k]) o.visible = (k === nome);
-    girevole = { terra, marte, saturno, cubo, modello, foto }[nome];
+    girevole = { terra, marte, saturno, cubo, modello, foto, oggetto }[nome];
     cielo.intensity = nome === "modello" ? 1.6 : 0;
     log("soggetto: " + nome);
   };
@@ -621,7 +713,7 @@ async function caricaScena3D() {
     let triangoli = 0; m.traverse(o => { if (o.isMesh) triangoli += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
     log(`modello ${file.name}: ${(file.size / 1048576).toFixed(1)} MB · ${Math.round(triangoli).toLocaleString("it-IT")} triangoli`);
   };
-  window.scegliSoggetto(PREF.sogg === "modello" || PREF.sogg === "foto" ? "terra" : PREF.sogg);
+  window.scegliSoggetto(["modello", "foto", "oggetto"].includes(PREF.sogg) ? "terra" : PREF.sogg);
 
   const alone = new THREE.Mesh(new THREE.RingGeometry(0.75, 1, 48),
     new THREE.MeshBasicMaterial({ color: 0xff4fa3, transparent: true, opacity: 0, depthTest: false }));
@@ -653,17 +745,17 @@ async function caricaScena3D() {
     scena.zoom = (scena.zoom || 1) + (((scena.modo === "presa") ? 1.1 : 1) - (scena.zoom || 1)) * (1 - Math.exp(-dt * 12));
     scena.zoomVisto = (scena.zoomVisto || 1) + (scena.zoomUtente - (scena.zoomVisto || 1)) * (1 - Math.exp(-dt * 16));
     const s = scena.r * scena.zoom * scena.zoomVisto * (0.2 + 0.8 * easeOutBack(scena.comparsa));
-    sistema.visible = scena.comparsa > 0.02 && !!scena.pos;
+    sistema.visible = scena.comparsa > 0.02 && !!scena.pos && !cattura.attiva;   // durante la cattura si vede solo la fotocamera
     if (scena.pos) sistema.position.set(scena.pos.x, scena.pos.y, 0);
     sistema.scale.setScalar(Math.max(s, 0.001));
     if (scena.modo !== "presa") autoGiro += dt * 0.35;   // un giro ogni ~18 s; fermo mentre la tieni
-    if (attivo === "foto") {
-      // la foto non gira da sola: si inclina con la mano, col polso o con due dita (massimo 30°),
-      // più un'oscillazione lenta che fa vedere il rilievo anche con la mano ferma
-      const osc = PREF.oscilla === false ? 0 : 1, ora = t / 1000;
-      const lim = v => Math.max(-INCLINA_MAX, Math.min(INCLINA_MAX, v));
-      foto.rotation.y = lim(scena.spin + scena.inclina.yaw + osc * 0.16 * Math.sin(ora * 0.9));
-      foto.rotation.x = lim(scena.inclina.pitch + osc * 0.07 * Math.sin(ora * 0.6));
+    if (attivo === "foto" || attivo === "oggetto") {
+      // foto e oggetti non girano da soli: si inclinano con la mano, col polso o con due dita
+      // (foto 30°, oggetto 45°), più un'oscillazione lenta che fa vedere il rilievo anche con la mano ferma
+      const osc = PREF.oscilla === false ? 0 : 1, ora = t / 1000, max = attivo === "foto" ? INCLINA_MAX : RUOTA_OGGETTO;
+      const lim = v => Math.max(-max, Math.min(max, v));
+      girevole.rotation.y = lim(scena.spin + scena.inclina.yaw + osc * (attivo === "foto" ? 0.16 : 0.3) * Math.sin(ora * 0.9));
+      girevole.rotation.x = lim(scena.inclina.pitch + osc * 0.07 * Math.sin(ora * 0.6));
     } else girevole.rotation.y = autoGiro + scena.spin;
     if (attivo === "cubo") { nucleo.rotation.y = -autoGiro * 1.7; nucleo.rotation.x = autoGiro * 0.6; }
     orbita.rotation.y += dt * 0.9;                 // la Luna gira intorno in ~7 s
@@ -719,6 +811,8 @@ function aggiorna(res, t) {
     draw.drawLandmarks(m.f, { color: "#ffffff", fillColor: "#39d0ff", radius: 4 });
   });
   const perLato = Object.fromEntries(viste.map(m => [m.lato, m]));
+  ultimeViste = viste;
+  if (cattura.attiva) { gestiCattura(viste, t); aggiornaContatore([]); return; }   // durante la cattura le mani servono solo a puntare
 
   // 0. zoom con una mano: medio, anulare e mignolo chiusi, indice disteso, pollice e indice aperti
   for (const m of viste) {
@@ -840,7 +934,7 @@ function aggiorna(res, t) {
   }
 
   // 5b. Foto 3D: inclinazione della mano che la tiene sul palmo (si guarda la foto un po' di lato)
-  if (soggettoAttivo === "foto" && scena.modo === "palmo" && perLato[scena.manoPalmo] && !tocco.attivo) {
+  if ((soggettoAttivo === "foto" || soggettoAttivo === "oggetto") && scena.modo === "palmo" && perLato[scena.manoPalmo] && !tocco.attivo) {
     const m = perLato[scena.manoPalmo], inc = inclinazioneMano(m.f);
     if (!scena.inclina0) scena.inclina0 = inc;                        // la posizione di partenza vale zero
     const k = 1 - Math.exp(-0.25);                                   // un po' di morbidezza
@@ -948,15 +1042,17 @@ function inclinazioneMano(f) {
 }
 
 // profondità 0–255 → 0–1 robusta (scarta il 2% più vicino e più lontano) e un po' sfumata (niente gradini)
-function normalizzaProfondita(p) {
-  const { w, h, data } = p, n = w * h;
-  const ist = new Uint32Array(256); for (let i = 0; i < n; i++) ist[data[i]]++;
+// con la maschera (oggetti): conta solo i pixel dell'oggetto e mette a zero il resto
+function normalizzaProfondita(p, maschera) {
+  const { w, h, data } = p, n = w * h, dentro = i => !maschera || maschera.data[i] > 127;
+  const ist = new Uint32Array(256); let tot = 0;
+  for (let i = 0; i < n; i++) if (dentro(i)) { ist[data[i]]++; tot++; }
   let acc = 0, lo = 0, hi = 255;
-  for (let v = 0; v < 256; v++) { acc += ist[v]; if (acc >= n * 0.02) { lo = v; break; } }
-  acc = 0; for (let v = 255; v >= 0; v--) { acc += ist[v]; if (acc >= n * 0.02) { hi = v; break; } }
+  for (let v = 0; v < 256; v++) { acc += ist[v]; if (acc >= tot * 0.02) { lo = v; break; } }
+  acc = 0; for (let v = 255; v >= 0; v--) { acc += ist[v]; if (acc >= tot * 0.02) { hi = v; break; } }
   const sc = 1 / Math.max(1, hi - lo);
   let a = new Float32Array(n), b = new Float32Array(n);
-  for (let i = 0; i < n; i++) a[i] = Math.min(1, Math.max(0, (data[i] - lo) * sc));
+  for (let i = 0; i < n; i++) a[i] = dentro(i) ? Math.min(1, Math.max(0, (data[i] - lo) * sc)) : 0;
   const r = Math.max(1, Math.round(Math.max(w, h) / 200));           // sfocatura a scatola, 2 passate
   for (let pass = 0; pass < 2; pass++) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -966,6 +1062,7 @@ function normalizzaProfondita(p) {
       let s = 0, c = 0; for (let k = -r; k <= r; k++) { const yy = y + k; if (yy >= 0 && yy < h) { s += b[yy * w + x]; c++; } } a[y * w + x] = s / c;
     }
   }
+  if (maschera) for (let i = 0; i < n; i++) if (!dentro(i)) a[i] = 0;   // i bordi restano fermi: il guscio si chiude
   return { w, h, data: a };
 }
 // valore della profondità per ogni vertice, letto alle sue coordinate uv (v = 0 è la riga in alto della foto)
@@ -1096,22 +1193,27 @@ const archivio = {
   async apri() {
     if (this.db) return this.db;
     this.db = await new Promise((ok, ko) => {
-      const r = indexedDB.open("aura-foto", 1);
-      r.onupgradeneeded = () => r.result.createObjectStore("foto", { keyPath: "id" });
+      const r = indexedDB.open("aura-foto", 2);
+      r.onupgradeneeded = () => {
+        for (const nome of ["foto", "oggetti"]) if (!r.result.objectStoreNames.contains(nome)) r.result.createObjectStore(nome, { keyPath: "id" });
+      };
       r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error);
     });
     return this.db;
   },
-  async op(modo, fn) {
+  async op(modo, fn, negozio = "foto") {
     const db = await this.apri();
     return new Promise((ok, ko) => {
-      const tx = db.transaction("foto", modo), r = fn(tx.objectStore("foto"));
+      const tx = db.transaction(negozio, modo), r = fn(tx.objectStore(negozio));
       tx.oncomplete = () => ok(r && r.result); tx.onerror = () => ko(tx.error); tx.onabort = () => ko(tx.error);
     });
   },
   tutte() { return this.op("readonly", st => st.getAll()); },
   metti(rec) { return this.op("readwrite", st => st.put(rec)); },
   togli(id) { return this.op("readwrite", st => st.delete(id)); },
+  oggetti() { return this.op("readonly", st => st.getAll(), "oggetti"); },
+  mettiOggetto(rec) { return this.op("readwrite", st => st.put(rec), "oggetti"); },
+  togliOggetto(id) { return this.op("readwrite", st => st.delete(id), "oggetti"); },
 };
 async function caricaAlbum() {
   try { album = (await archivio.tutte()).sort((a, b) => a.id - b.id); }
@@ -1213,6 +1315,444 @@ function sfoglia(dir) {
   apriDaAlbum(album[i].id, false);
 }
 caricaAlbum();
+
+// ---------------- Oggetti 3D: cattura dalla fotocamera ----------------
+// 1. scegli l'oggetto (cerchio col dito, tocco, o indice puntato e fermo 1 s)
+// 2. per 2 s la pagina lo segmenta in ogni fotogramma (MediaPipe Interactive Segmenter) e tiene il più nitido
+// 3. ritaglio con trasparenza, riconoscimento (MediaPipe Object Detector), misure stimate con la mano
+// 4. profondità con l'AI (Depth Anything) → oggetto 3D in rilievo, salvato nel telefono, esportabile in .glb
+const cattura = { attiva: false, fase: "", tracciato: [], punta: null, raccolta: null, ultimo: null };
+let ultimeViste = [], segmenter = null, detector = null, oggetti = [], oggettoCorrente = null;
+const traccia = $("traccia"), tctx = traccia.getContext("2d");
+const COCO_IT = { person: "persona", bicycle: "bicicletta", car: "auto", motorcycle: "moto", airplane: "aereo", bus: "autobus", train: "treno",
+  truck: "camion", boat: "barca", "traffic light": "semaforo", "fire hydrant": "idrante", "stop sign": "segnale di stop", "parking meter": "parchimetro",
+  bench: "panchina", bird: "uccello", cat: "gatto", dog: "cane", horse: "cavallo", sheep: "pecora", cow: "mucca", elephant: "elefante", bear: "orso",
+  zebra: "zebra", giraffe: "giraffa", backpack: "zaino", umbrella: "ombrello", handbag: "borsa", tie: "cravatta", suitcase: "valigia", frisbee: "frisbee",
+  skis: "sci", snowboard: "snowboard", "sports ball": "palla", kite: "aquilone", "baseball bat": "mazza da baseball", "baseball glove": "guantone",
+  skateboard: "skateboard", surfboard: "tavola da surf", "tennis racket": "racchetta da tennis", bottle: "bottiglia", "wine glass": "calice",
+  cup: "tazza", fork: "forchetta", knife: "coltello", spoon: "cucchiaio", bowl: "ciotola", banana: "banana", apple: "mela", sandwich: "panino",
+  orange: "arancia", broccoli: "broccolo", carrot: "carota", "hot dog": "hot dog", pizza: "pizza", donut: "ciambella", cake: "torta", chair: "sedia",
+  couch: "divano", "potted plant": "pianta in vaso", bed: "letto", "dining table": "tavolo", toilet: "WC", tv: "televisore", laptop: "portatile",
+  mouse: "mouse", remote: "telecomando", keyboard: "tastiera", "cell phone": "telefono", microwave: "microonde", oven: "forno", toaster: "tostapane",
+  sink: "lavello", refrigerator: "frigorifero", book: "libro", clock: "orologio", vase: "vaso", scissors: "forbici", "teddy bear": "orsacchiotto",
+  "hair drier": "asciugacapelli", toothbrush: "spazzolino" };
+
+// dallo schermo alle coordinate della fotocamera (0–1), l'inverso di suSchermo
+function daSchermo(x, y) {
+  const W = innerWidth, H = innerHeight, vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+  const sc = Math.max(W / vw, H / vh);
+  if (facing === "user") x = W - x;
+  return { x: (x - (W - vw * sc) / 2) / (vw * sc), y: (y - (H - vh * sc) / 2) / (vh * sc) };
+}
+function adattaTraccia() {
+  const d = Math.min(devicePixelRatio || 1, 2);
+  if (traccia.width !== Math.round(innerWidth * d)) { traccia.width = Math.round(innerWidth * d); traccia.height = Math.round(innerHeight * d); }
+  tctx.setTransform(d, 0, 0, d, 0, 0);
+}
+function bannerCattura(testo) { $("bannerTesto").textContent = testo; $("banner").hidden = !testo; }
+
+function iniziaCattura() {
+  if (!stream || !video.videoWidth) { avviso("Apri prima la fotocamera"); return; }
+  Object.assign(cattura, { attiva: true, fase: "scegli", tracciato: [], punta: null, raccolta: null });
+  apriMenu(false); $("scheda").hidden = true;
+  bannerCattura("Cerchia l'oggetto con un dito, oppure puntalo con l'indice e tieni fermo 1 secondo.");
+  preparaModelli();                                   // intanto carico segmentazione e riconoscimento
+  log("cattura: scegli l'oggetto");
+}
+function fineCattura(msg) {
+  cattura.attiva = false; cattura.fase = ""; bannerCattura("");
+  adattaTraccia(); tctx.clearRect(0, 0, innerWidth, innerHeight);
+  if (msg) avviso(msg, 2500);
+}
+$("annullaCattura").addEventListener("click", () => fineCattura("Cattura annullata"));
+$("catturaOggetto").addEventListener("click", iniziaCattura);
+
+async function preparaModelli() {
+  if (!mp) return;
+  const crea = async (Classe, opzioni, nome) => {
+    for (const delegate of ["GPU", "CPU"]) {
+      try { return await Classe.createFromOptions(files, { ...opzioni, baseOptions: { ...opzioni.baseOptions, delegate } }); }
+      catch (e) { log(`${nome} (${delegate}) non disponibile: ${e.message || e}`); }
+    }
+    return null;
+  };
+  if (!segmenter && mp.InteractiveSegmenter) {
+    segmenter = await crea(mp.InteractiveSegmenter, { baseOptions: { modelAssetPath: SEG_MODELLO }, outputCategoryMask: true, outputConfidenceMasks: false }, "segmentazione");
+    if (segmenter) log("segmentazione pronta");
+  }
+  if (!detector && mp.ObjectDetector) {
+    detector = await crea(mp.ObjectDetector, { baseOptions: { modelAssetPath: DET_MODELLO }, scoreThreshold: 0.25, maxResults: 5, runningMode: "IMAGE" }, "riconoscimento");
+    if (detector) log("riconoscimento pronto");
+  }
+}
+
+// --- scelta: dito sullo schermo ---
+function catturaTocco(tipo, e) {
+  if (cattura.fase !== "scegli") return;
+  const p = { x: e.clientX, y: e.clientY };
+  if (tipo === "down") { cattura.tracciato = [p]; }
+  else if (tipo === "move" && cattura.tracciato.length) { cattura.tracciato.push(p); disegnaTracciato(); }
+  else if (tipo === "up" && cattura.tracciato.length) {
+    const tr = cattura.tracciato; let lung = 0;
+    for (let i = 1; i < tr.length; i++) lung += dist(tr[i], tr[i - 1]);
+    if (lung > 80 && tr.length > 6) {
+      const c = media(tr);
+      avviaRaccolta(daSchermo(c.x, c.y), tr.map(q => daSchermo(q.x, q.y)), "cerchio");
+    } else avviaRaccolta(daSchermo(p.x, p.y), null, "tocco");
+  }
+}
+function disegnaTracciato() {
+  adattaTraccia(); tctx.clearRect(0, 0, innerWidth, innerHeight);
+  const tr = cattura.tracciato; if (tr.length < 2) return;
+  tctx.lineWidth = 4; tctx.lineJoin = tctx.lineCap = "round"; tctx.strokeStyle = "#39d0ff";
+  tctx.beginPath(); tctx.moveTo(tr[0].x, tr[0].y); for (const q of tr) tctx.lineTo(q.x, q.y); tctx.stroke();
+}
+// --- scelta: indice puntato e fermo (medio, anulare e mignolo chiusi) ---
+function gestiCattura(viste, t) {
+  if (cattura.fase !== "scegli") return;
+  const m = viste.find(v => {
+    const piegate = [[12, 10], [16, 14], [20, 18]].every(([tip, pip]) => dist(v.s[tip], v.s[0]) < dist(v.s[pip], v.s[0]) * 1.1);
+    return piegate && dist(v.s[8], v.s[0]) > dist(v.s[6], v.s[0]) * 1.05;
+  });
+  if (!m) { if (cattura.punta) { cattura.punta = null; disegnaTracciato(); } return; }
+  // il punto scelto è appena oltre la punta del dito, nella direzione in cui punta
+  const dir = { x: m.s[8].x - m.s[6].x, y: m.s[8].y - m.s[6].y }, k = 0.6;
+  const q = { x: m.s[8].x + dir.x * k, y: m.s[8].y + dir.y * k };
+  const lim = Math.min(innerWidth, innerHeight) * 0.04;
+  if (!cattura.punta || dist(q, cattura.punta.q0) > lim) cattura.punta = { t0: t, q0: q };
+  const frac = Math.min(1, (t - cattura.punta.t0) / PUNTA_MS);
+  adattaTraccia(); tctx.clearRect(0, 0, innerWidth, innerHeight);
+  tctx.lineWidth = 5; tctx.strokeStyle = "rgba(255,255,255,.35)";
+  tctx.beginPath(); tctx.arc(q.x, q.y, 26, 0, Math.PI * 2); tctx.stroke();
+  tctx.strokeStyle = "#39d0ff"; tctx.beginPath(); tctx.arc(q.x, q.y, 26, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2); tctx.stroke();
+  if (frac >= 1) { cattura.punta = null; feedback("presa"); avviaRaccolta(daSchermo(q.x, q.y), null, "indice"); }
+}
+
+// --- raccolta: 2 secondi di fotogrammi con la loro maschera ---
+async function avviaRaccolta(punto, poligono, come) {
+  if (punto.x < 0 || punto.x > 1 || punto.y < 0 || punto.y > 1) { avviso("Punto fuori dall'inquadratura"); return; }
+  cattura.fase = "raccolgo";
+  bannerCattura("Tieni fermo il telefono: osservo l'oggetto…");
+  log(`cattura: oggetto scelto con ${come} in (${punto.x.toFixed(2)}, ${punto.y.toFixed(2)})`);
+  await preparaModelli();
+  const R = cattura.raccolta = { punto, poligono, come, fotogrammi: [], t0: performance.now(), mano: misuraMano() };
+  while (cattura.attiva && performance.now() - R.t0 < CATTURA_MS) {
+    const f = fotogramma();
+    f.maschera = segmenter ? segmenta(f.canvas, R.punto) : null;
+    if (f.maschera) {
+      // il punto segue l'oggetto: diventa il centro della maschera (se il telefono si sposta un po')
+      const c = centroMaschera(f.maschera); if (c) R.punto = c;
+    }
+    R.fotogrammi.push(f);
+    disegnaRaccolta(f, (performance.now() - R.t0) / CATTURA_MS);
+    await new Promise(r => setTimeout(r, 150));      // circa 12 fotogrammi in 2 s: abbastanza per scegliere, poca memoria
+  }
+  if (!cattura.attiva) return;
+  cattura.fase = "elaboro"; bannerCattura("Elaboro…");
+  try { await elabora(R); }
+  catch (e) { log("ERRORE cattura: " + (e.message || e)); fineCattura("Cattura non riuscita: riprova con più luce"); }
+}
+function fotogramma() {
+  const c = document.createElement("canvas"); c.width = video.videoWidth; c.height = video.videoHeight;
+  c.getContext("2d").drawImage(video, 0, 0);
+  return { canvas: c, t: performance.now() };
+}
+// maschera dell'oggetto sotto il punto: {w, h, data (1 = oggetto)} oppure null
+function segmenta(c, punto) {
+  let out = null;
+  try {
+    segmenter.segment(c, { keypoint: { x: punto.x, y: punto.y } }, r => {
+      const m = r.categoryMask; if (!m) return;
+      const d = m.getAsUint8Array(), w = m.width, h = m.height;
+      const v = d[Math.min(h - 1, Math.round(punto.y * (h - 1))) * w + Math.min(w - 1, Math.round(punto.x * (w - 1)))];
+      const sel = new Uint8Array(w * h); let n = 0;
+      for (let i = 0; i < w * h; i++) if (d[i] === v) { sel[i] = 1; n++; }
+      if (n > 0 && n < w * h * 0.95) out = { w, h, data: sel, area: n };
+    });
+  } catch (e) { log("segmentazione: " + (e.message || e)); }
+  return out;
+}
+function centroMaschera(m) {
+  let sx = 0, sy = 0, n = 0;
+  for (let y = 0; y < m.h; y += 2) for (let x = 0; x < m.w; x += 2) if (m.data[y * m.w + x]) { sx += x; sy += y; n++; }
+  return n ? { x: sx / n / m.w, y: sy / n / m.h } : null;
+}
+function disegnaRaccolta(f, frac) {
+  adattaTraccia(); tctx.clearRect(0, 0, innerWidth, innerHeight);
+  const m = f.maschera, vw = video.videoWidth, vh = video.videoHeight;
+  if (m) {
+    // la maschera colorata sopra il video, con lo stesso ritaglio e lo stesso specchio del video
+    const c = document.createElement("canvas"); c.width = m.w; c.height = m.h;
+    const g = c.getContext("2d"), im = g.createImageData(m.w, m.h);
+    for (let i = 0; i < m.w * m.h; i++) if (m.data[i]) { im.data[i * 4] = 57; im.data[i * 4 + 1] = 208; im.data[i * 4 + 2] = 255; im.data[i * 4 + 3] = 110; }
+    g.putImageData(im, 0, 0);
+    const sc = Math.max(innerWidth / vw, innerHeight / vh), ox = (innerWidth - vw * sc) / 2, oy = (innerHeight - vh * sc) / 2;
+    tctx.save();
+    if (facing === "user") { tctx.translate(innerWidth, 0); tctx.scale(-1, 1); }
+    tctx.drawImage(c, ox, oy, vw * sc, vh * sc);
+    tctx.restore();
+  }
+  const p = suSchermo(cattura.raccolta.punto);
+  tctx.lineWidth = 5; tctx.strokeStyle = "rgba(255,255,255,.35)"; tctx.beginPath(); tctx.arc(p.x, p.y, 30, 0, Math.PI * 2); tctx.stroke();
+  tctx.strokeStyle = "#ffd84f"; tctx.beginPath(); tctx.arc(p.x, p.y, 30, -Math.PI / 2, -Math.PI / 2 + Math.min(1, frac) * Math.PI * 2); tctx.stroke();
+}
+// misura della mano visibile (per stimare i cm): distanza nocca indice (5) – nocca mignolo (17) in pixel della fotocamera
+function misuraMano() {
+  const m = ultimeViste[0]; if (!m) return null;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  return Math.hypot((m.f[5].x - m.f[17].x) * vw, (m.f[5].y - m.f[17].y) * vh);
+}
+
+// --- elaborazione: miglior fotogramma, ritaglio, riconoscimento, misure, profondità ---
+function nitidezza(c, box) {
+  // varianza del Laplaciano sulla zona dell'oggetto (rimpicciolita): più alta = più nitida
+  const L = 160, k = Math.min(1, L / Math.max(box.w, box.h)), w = Math.max(8, Math.round(box.w * k)), h = Math.max(8, Math.round(box.h * k));
+  const t = document.createElement("canvas"); t.width = w; t.height = h;
+  const g = t.getContext("2d"); g.drawImage(c, box.x, box.y, box.w, box.h, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h).data, gr = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) gr[i] = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+  let s = 0, s2 = 0, n = 0;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x, l = 4 * gr[i] - gr[i - 1] - gr[i + 1] - gr[i - w] - gr[i + w];
+    s += l; s2 += l * l; n++;
+  }
+  return n ? s2 / n - (s / n) ** 2 : 0;
+}
+function riquadro(m) {
+  let x0 = m.w, y0 = m.h, x1 = -1, y1 = -1;
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (m.data[y * m.w + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+function iou(a, b) {
+  let i = 0, u = 0; const n = a.w * a.h;
+  for (let k = 0; k < n; k += 3) { const p = a.data[k], q = b.data[k]; if (p && q) i++; if (p || q) u++; }
+  return u ? i / u : 0;
+}
+// tiene solo la parte collegata al punto scelto (niente pezzi staccati) e, se c'è, solo dentro il cerchio
+function pulisciMaschera(m, punto, poligono) {
+  const { w, h } = m, out = new Uint8Array(w * h);
+  let sx = Math.round(punto.x * (w - 1)), sy = Math.round(punto.y * (h - 1));
+  if (!m.data[sy * w + sx]) {                       // se il punto cade fuori, parto dal pixel dell'oggetto più vicino
+    let best = Infinity;
+    for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) if (m.data[y * w + x]) { const d = (x - sx) ** 2 + (y - sy) ** 2; if (d < best) { best = d; sx = x; sy = y; } }
+    if (best === Infinity) return null;
+  }
+  const coda = [sy * w + sx]; out[coda[0]] = 1; let n = 0;
+  while (coda.length) {
+    const i = coda.pop(); n++; const x = i % w, y = (i / w) | 0;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1])
+      if (j >= 0 && !out[j] && m.data[j]) { out[j] = 1; coda.push(j); }
+  }
+  if (poligono && poligono.length > 2) {
+    const dentro = (px, py) => { let c = false; for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+      const a = poligono[i], b = poligono[j];
+      if ((a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) c = !c; } return c; };
+    // il cerchio fatto col dito è di solito un po' largo o un po' stretto: lo allargo del 10% intorno al suo centro
+    const c = media(poligono), largo = poligono.map(q => ({ x: c.x + (q.x - c.x) * 1.1, y: c.y + (q.y - c.y) * 1.1 }));
+    poligono = largo; n = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; if (out[i] && !dentro(x / w, y / h)) out[i] = 0; if (out[i]) n++; }
+  }
+  return n > 50 ? { w, h, data: out, area: n } : null;
+}
+function mascheraDaPoligono(w, h, poligono, punto) {
+  const out = new Uint8Array(w * h); let n = 0;
+  const pol = poligono && poligono.length > 2 ? poligono : Array.from({ length: 24 }, (_, i) => ({ x: punto.x + 0.12 * Math.cos(i / 24 * 2 * Math.PI) * h / w, y: punto.y + 0.12 * Math.sin(i / 24 * 2 * Math.PI) }));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const px = x / w, py = y / h; let c = false;
+    for (let i = 0, j = pol.length - 1; i < pol.length; j = i++) { const a = pol[i], b = pol[j]; if ((a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) c = !c; }
+    if (c) { out[y * w + x] = 1; n++; }
+  }
+  return { w, h, data: out, area: n };
+}
+async function elabora(R) {
+  const t0 = performance.now();
+  const conMaschera = R.fotogrammi.filter(f => f.maschera);
+  let scelto, maschera, stabilita = null;
+  if (conMaschera.length) {
+    // scarto i fotogrammi con una maschera troppo diversa dalle altre (mano davanti, sfocatura, salto)
+    const aree = conMaschera.map(f => f.maschera.area).sort((a, b) => a - b), med = aree[aree.length >> 1];
+    const buoni = conMaschera.filter(f => Math.abs(f.maschera.area - med) < med * 0.25);
+    for (let i = 1; i < conMaschera.length; i++) conMaschera[i].iou = iou(conMaschera[i].maschera, conMaschera[i - 1].maschera);
+    const ious = conMaschera.slice(1).map(f => f.iou); stabilita = ious.length ? ious.reduce((a, b) => a + b, 0) / ious.length : null;
+    for (const f of buoni) { const b = riquadro(f.maschera); f.nitido = b ? nitidezza(f.canvas, b) : 0; }
+    scelto = buoni.sort((a, b) => b.nitido - a.nitido)[0] || conMaschera[0];
+    maschera = pulisciMaschera(scelto.maschera, R.punto, R.poligono);
+  }
+  if (!maschera) {                                   // niente segmentazione: uso il cerchio (o un cerchio intorno al tocco)
+    scelto = scelto || R.fotogrammi[R.fotogrammi.length >> 1];
+    const c = scelto.canvas; maschera = mascheraDaPoligono(c.width, c.height, R.poligono, R.punto);
+    log("cattura: segmentazione non disponibile, uso il " + (R.poligono ? "cerchio" : "cerchio intorno al tocco"));
+  }
+  const vw = scelto.canvas.width, vh = scelto.canvas.height;
+  // la maschera può avere una risoluzione diversa dal fotogramma: la riporto in pixel del fotogramma
+  const box0 = riquadro(maschera), kx = vw / maschera.w, ky = vh / maschera.h;
+  const marg = 0.06 * Math.max(box0.w * kx, box0.h * ky);
+  const box = { x: Math.max(0, Math.floor(box0.x * kx - marg)), y: Math.max(0, Math.floor(box0.y * ky - marg)) };
+  box.w = Math.min(vw - box.x, Math.ceil(box0.w * kx + 2 * marg)); box.h = Math.min(vh - box.y, Math.ceil(box0.h * ky + 2 * marg));
+  // ritaglio: colori del fotogramma + trasparenza dalla maschera, bordi ammorbiditi
+  const rit = document.createElement("canvas"); rit.width = box.w; rit.height = box.h;
+  const g = rit.getContext("2d"); g.drawImage(scelto.canvas, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+  const im = g.getImageData(0, 0, box.w, box.h);
+  const alfa = new Float32Array(box.w * box.h);
+  for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {
+    const mx = Math.min(maschera.w - 1, Math.floor((box.x + x) / kx)), my = Math.min(maschera.h - 1, Math.floor((box.y + y) / ky));
+    alfa[y * box.w + x] = maschera.data[my * maschera.w + mx] ? 255 : 0;
+  }
+  for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {           // sfumatura 3×3
+    let s = 0, c = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < box.w && yy < box.h) { s += alfa[yy * box.w + xx]; c++; } }
+    im.data[(y * box.w + x) * 4 + 3] = s / c;
+  }
+  g.putImageData(im, 0, 0);
+  // riconoscimento sul fotogramma intero, scegliendo il riquadro che combacia di più con l'oggetto
+  let nome = "oggetto", punteggio = null;
+  if (detector) {
+    try {
+      const r = detector.detect(scelto.canvas), boxV = { x: box.x + marg, y: box.y + marg, w: box.w - 2 * marg, h: box.h - 2 * marg };
+      let meglio = 0;
+      for (const d of r.detections || []) {
+        const b = d.boundingBox, cat = d.categories && d.categories[0]; if (!b || !cat) continue;
+        const ix = Math.max(0, Math.min(b.originX + b.width, boxV.x + boxV.w) - Math.max(b.originX, boxV.x));
+        const iy = Math.max(0, Math.min(b.originY + b.height, boxV.y + boxV.h) - Math.max(b.originY, boxV.y));
+        // quanta parte del nostro oggetto sta dentro il riquadro trovato, e il riquadro non deve essere enormemente più grande
+        const copre = ix * iy / Math.max(1, boxV.w * boxV.h), rapporto = (b.width * b.height) / Math.max(1, boxV.w * boxV.h);
+        const voto = copre > 0.6 && rapporto < 6 ? copre * cat.score / Math.max(1, Math.sqrt(rapporto)) : 0;
+        if (voto > meglio) { meglio = voto; nome = COCO_IT[cat.categoryName] || cat.categoryName; punteggio = cat.score; }
+      }
+    } catch (e) { log("riconoscimento: " + (e.message || e)); }
+  }
+  // misure stimate: se si vedeva una mano, la sua larghezza fa da metro
+  let cm = null;
+  if (R.mano && R.mano > 10) {
+    const k = PALMO_CM / R.mano;
+    cm = { w: Math.round(box0.w * kx * k), h: Math.round(box0.h * ky * k) };
+  }
+  // ritaglio pronto: lo salvo e lo mostro subito (piatto), poi la profondità
+  const ritBlob = await new Promise(ok => rit.toBlob(ok, "image/png"));
+  const crop = await new Promise(ok => { const c = document.createElement("canvas"); c.width = box.w; c.height = box.h;
+    c.getContext("2d").drawImage(scelto.canvas, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h); c.toBlob(ok, "image/jpeg", 0.92); });
+  const thumb = (await ridimensiona(rit, 160, "image/png")).canvas.toDataURL("image/png");
+  const rec = { id: Date.now(), nome, punteggio, img: ritBlob, crop, thumb, prof: null, alfa: null, cm, stabilita,
+                come: R.come, fotogrammi: R.fotogrammi.length, creato: new Date().toISOString() };
+  log(`cattura: ${R.fotogrammi.length} fotogrammi, ${conMaschera.length} con maschera, stabilità ${stabilita == null ? "–" : Math.round(stabilita * 100) + "%"}, ritaglio ${box.w}×${box.h}, ${nome}${punteggio ? " " + Math.round(punteggio * 100) + "%" : ""}${cm ? `, circa ${cm.w}×${cm.h} cm` : ""} · ${Math.round(performance.now() - t0)} ms`);
+  fineCattura();
+  oggettoCorrente = rec.id;
+  mostraScheda(rec, "Calcolo la forma 3D…");
+  if (window.mostraOggetto) window.mostraOggetto(rit, null, null);
+  mostraOggettoComeSoggetto(rec);
+  await salvaOggetto(rec);
+  try { await profonditaOggetto(rec, rit); mostraScheda(rec, "Pronto: è sul palmo. Inclina la mano per vederlo di lato.", true); }
+  catch (e) { log("ERRORE AI oggetto: " + (e.message || e)); mostraScheda(rec, "Forma 3D non calcolata: l'oggetto resta piatto."); }
+}
+async function profonditaOggetto(rec, rit) {
+  // all'AI va il riquadro con lo sfondo (il contesto aiuta a capire la profondità); poi tengo solo l'oggetto
+  const bmp = await bitmapDa(rec.crop);
+  const { blob } = await ridimensiona(bmp, AI_LATO, "image/jpeg", 0.92); if (bmp.close) bmp.close();
+  const r = await calcolaProfondita(blob);
+  // maschera alla stessa misura della profondità
+  const c = document.createElement("canvas"); c.width = r.w; c.height = r.h;
+  c.getContext("2d").drawImage(rit, 0, 0, r.w, r.h);
+  const d = c.getContext("2d").getImageData(0, 0, r.w, r.h).data, a = new Uint8Array(r.w * r.h);
+  for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+  rec.prof = { w: r.w, h: r.h, data: r.data }; rec.alfa = { w: r.w, h: r.h, data: a };
+  log(`profondità oggetto: AI ${(r.ms / 1000).toFixed(2)} s · ${r.dispositivo}`);
+  if (oggettoCorrente === rec.id && window.mostraOggetto) window.mostraOggetto(rit, rec.prof, rec.alfa);
+  feedback("comparsa");
+  await salvaOggetto(rec);
+}
+function mostraOggettoComeSoggetto(rec) {
+  $("soggOggetto").hidden = false; $("nomeOggetto").textContent = rec.nome;
+  mostraSoggetto("oggetto"); window.scegliSoggetto && window.scegliSoggetto("oggetto");
+  scena.spin = 0; scena.inclina0 = null;
+  if (!scena.visibile) {                               // senza mano: compare al centro dello schermo
+    const r = Math.min(innerWidth, innerHeight) * 0.2, q = { x: innerWidth / 2, y: innerHeight * 0.42 };
+    Object.assign(scena, { visibile: true, modo: "libera", armato: true, pos: { ...q }, target: { ...q }, r, raggio: r, zoomUtente: 1, presaDi: null });
+  }
+}
+
+// --- scheda dell'oggetto ---
+let schedaUrl = null;
+function mostraScheda(rec, stato, ok) {
+  if (schedaUrl) URL.revokeObjectURL(schedaUrl);
+  schedaUrl = URL.createObjectURL(rec.img);
+  $("schedaImg").src = schedaUrl;
+  $("schedaNome").textContent = rec.nome.charAt(0).toUpperCase() + rec.nome.slice(1);
+  const righe = [];
+  righe.push(rec.punteggio ? `Riconosciuto al ${Math.round(rec.punteggio * 100)}% (categoria generica)` : "Non riconosciuto: categoria da indicare");
+  righe.push(rec.cm ? `Misure indicative: circa ${rec.cm.w} × ${rec.cm.h} cm (stimate con la tua mano)` : "Misure: tieni la mano aperta vicino all'oggetto durante la cattura per stimarle");
+  if (rec.stabilita != null) righe.push(`Stabilità della cattura: ${Math.round(rec.stabilita * 100)}% su ${rec.fotogrammi} fotogrammi`);
+  $("schedaDett").innerHTML = righe.map(r => r.replace(/&/g, "&amp;").replace(/</g, "&lt;")).join("<br>");
+  $("schedaStato").textContent = stato || ""; $("schedaStato").className = "stato" + (ok ? " ok" : "");
+  $("schedaGlb").disabled = !rec.prof;
+  $("scheda").hidden = false;
+  $("scheda").dataset.id = rec.id;
+}
+const recScheda = () => oggetti.find(o => o.id === +$("scheda").dataset.id);
+$("schedaMostra").addEventListener("click", () => { $("scheda").hidden = true; if (!scena.visibile) avviso("Apri il palmo", 2000); });
+$("schedaRifai").addEventListener("click", () => { $("scheda").hidden = true; iniziaCattura(); });
+function scarica(blob, nome) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome;
+  document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+}
+const nomeFile = rec => (rec.nome || "oggetto").replace(/[^a-z0-9àèéìòù]+/gi, "-") + "-" + new Date(rec.id).toISOString().slice(0, 10);
+$("schedaPng").addEventListener("click", () => { const r = recScheda(); if (r) { scarica(r.img, nomeFile(r) + ".png"); log("scaricato il ritaglio"); } });
+$("schedaGlb").addEventListener("click", async () => {
+  const r = recScheda(); if (!r || !window.esportaGlb) return;
+  try {
+    if (oggettoCorrente !== r.id) await apriOggetto(r.id);
+    const buf = await window.esportaGlb();
+    scarica(new Blob([buf], { type: "model/gltf-binary" }), nomeFile(r) + ".glb");
+    log(`esportato .glb: ${(buf.byteLength / 1024).toFixed(0)} KB`); avviso("File .glb pronto");
+  } catch (e) { log("ERRORE esportazione: " + (e.message || e)); avviso("Esportazione non riuscita"); }
+});
+$("schedaClaude").addEventListener("click", async () => {
+  const r = recScheda(); if (!r) return;
+  const testo = `Progetto Aura · oggetto catturato il ${new Date(r.id).toLocaleString("it-IT")}.
+Categoria riconosciuta dal telefono: ${r.nome}${r.punteggio ? ` (${Math.round(r.punteggio * 100)}%)` : " (non sicura)"}.
+Misure indicative: ${r.cm ? `circa ${r.cm.w} × ${r.cm.h} cm, stimate con la mano` : "non stimate"}.
+Ti allego il ritaglio (.png). Per favore: 1) dimmi che oggetto è, se possibile marca e modello; 2) trova una scheda tecnica anche indicativa (misure, materiali, parti); 3) preparami un modello 3D realistico in .glb con quelle misure, da caricare in Aura con «Carica un modello 3D».`;
+  try { await navigator.clipboard.writeText(testo); avviso("Richiesta copiata: incollala a Claude con il ritaglio", 3500); }
+  catch (e) { log("appunti non disponibili"); avviso("Copia non riuscita"); }
+  scarica(r.img, nomeFile(r) + ".png");
+});
+
+// --- elenco degli oggetti nel menu ---
+async function caricaOggetti() {
+  try { oggetti = (await archivio.oggetti()).sort((a, b) => a.id - b.id); } catch (e) { oggetti = []; }
+  disegnaOggetti();
+}
+async function salvaOggetto(rec) {
+  oggetti = oggetti.filter(o => o.id !== rec.id).concat(rec).sort((a, b) => a.id - b.id);
+  while (oggetti.length > OGGETTI_MAX) { const via = oggetti.shift(); await archivio.togliOggetto(via.id).catch(() => {}); }
+  try { await archivio.mettiOggetto(rec); } catch (e) { log("ERRORE salvataggio oggetto: " + (e.message || e)); }
+  disegnaOggetti();
+}
+function disegnaOggetti() {
+  const el = $("oggetti"); el.textContent = "";
+  if (!oggetti.length) { el.innerHTML = '<div class="vuoto">Ancora nessun oggetto.</div>'; return; }
+  for (const r of oggetti) {
+    const d = document.createElement("div"); d.className = "alb";
+    const b = document.createElement("button"); b.className = "apri"; b.setAttribute("aria-label", "Apri " + r.nome);
+    if (r.id === oggettoCorrente) b.setAttribute("aria-current", "true");
+    const img = document.createElement("img"); img.alt = ""; img.src = r.thumb; b.append(img);
+    b.addEventListener("click", () => apriOggetto(r.id, true));
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "×"; x.setAttribute("aria-label", "Togli " + r.nome);
+    x.addEventListener("click", async () => { await archivio.togliOggetto(r.id).catch(() => {}); oggetti = oggetti.filter(o => o.id !== r.id); disegnaOggetti(); avviso("Oggetto tolto"); });
+    d.append(b, x);
+    if (!r.prof) { const s = document.createElement("span"); s.className = "senza"; s.textContent = "piatto"; d.append(s); }
+    el.append(d);
+  }
+}
+async function apriOggetto(id, conScheda) {
+  const rec = oggetti.find(o => o.id === id); if (!rec || !window.mostraOggetto) return;
+  const bmp = await bitmapDa(rec.img), c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+  c.getContext("2d").drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
+  oggettoCorrente = rec.id;
+  window.mostraOggetto(c, rec.prof, rec.alfa);
+  mostraOggettoComeSoggetto(rec); disegnaOggetti();
+  if (conScheda) { apriMenu(false); mostraScheda(rec, rec.prof ? "Sul palmo." : "Piatto: calcolo la forma 3D…", !!rec.prof); }
+  if (!rec.prof) profonditaOggetto(rec, c).then(() => conScheda && mostraScheda(rec, "Pronto.", true)).catch(e => log("ERRORE AI oggetto: " + (e.message || e)));
+}
+caricaOggetti();
 
 // ---------------- menu ----------------
 const menu = $("menu"), velo = $("velo"), menuBtn = $("menuBtn");
@@ -1339,12 +1879,14 @@ function lasciaSulloSchermo() {
   scena.raggio = scena.r;
 }
 zona.addEventListener("pointerdown", e => {
+  if (cattura.attiva) { try { zona.setPointerCapture(e.pointerId); } catch (err) {} catturaTocco("down", e); return; }
   tocco.suTerra = tocco.punti.size === 0 && scena.visibile && scena.pos && dist({ x: e.clientX, y: e.clientY }, scena.pos) < scena.r * scena.zoomUtente * 1.5;
   try { zona.setPointerCapture(e.pointerId); } catch (err) {}
   tocco.punti.set(e.pointerId, { x: e.clientX, y: e.clientY, t0: performance.now(), x0: e.clientX, y0: e.clientY });
   iniziaGesto();
 });
 zona.addEventListener("pointermove", e => {
+  if (cattura.attiva) { catturaTocco("move", e); return; }
   const q = tocco.punti.get(e.pointerId); if (!q) return;
   q.x = e.clientX; q.y = e.clientY;
   const g = tocco.attivo, p = puntiTocco();
@@ -1360,6 +1902,7 @@ zona.addEventListener("pointermove", e => {
   }
 });
 function fineTocco(e) {
+  if (cattura.attiva) { catturaTocco("up", e); return; }
   const q = tocco.punti.get(e.pointerId); if (!q) return;
   tocco.punti.delete(e.pointerId);
   const ora = performance.now();
